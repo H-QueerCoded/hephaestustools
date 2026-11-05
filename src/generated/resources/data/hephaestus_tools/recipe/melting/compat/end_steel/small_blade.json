@@ -1,0 +1,42 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "enderio"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/end_steel"
+      }
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_end_steel_bucket"
+    }
+  ],
+  "type": "hephaestus:melting",
+  "fuel": {
+    "amount": 50,
+    "id": "hephaestus:molten_blaze"
+  },
+  "ingredient": {
+    "type": "neoforge:components",
+    "components": {
+      "hephaestus_tools:part_material": "hephaestus_tools:end_steel"
+    },
+    "items": "hephaestus_tools:small_blade",
+    "strict": false
+  },
+  "result": {
+    "amount": 180,
+    "id": "hephaestus:molten_end_steel"
+  },
+  "temperature": 1600,
+  "time": 120
+}

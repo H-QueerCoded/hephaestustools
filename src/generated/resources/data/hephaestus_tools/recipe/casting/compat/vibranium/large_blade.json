@@ -1,0 +1,28 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "allthemodium"
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_vibranium_bucket"
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:large_blade_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 240,
+  "count": 1,
+  "fluid": {
+    "amount": 720,
+    "id": "hephaestus:molten_vibranium"
+  },
+  "result": "hephaestus_tools:large_blade"
+}

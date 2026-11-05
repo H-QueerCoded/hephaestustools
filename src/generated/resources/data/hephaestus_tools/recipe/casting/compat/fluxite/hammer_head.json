@@ -1,0 +1,35 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "oritech"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:gems/fluxite"
+      }
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_fluxite_bucket"
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:hammer_head_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 240,
+  "count": 1,
+  "fluid": {
+    "amount": 720,
+    "id": "hephaestus:molten_fluxite"
+  },
+  "result": "hephaestus_tools:hammer_head"
+}

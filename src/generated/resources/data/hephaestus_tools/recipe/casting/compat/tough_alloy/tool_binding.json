@@ -1,0 +1,31 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "colossal_reactors"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/tough_alloy"
+      }
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:tool_binding_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 100,
+  "count": 1,
+  "fluid": {
+    "amount": 90,
+    "id": "colossal_reactors:molten_tough_alloy"
+  },
+  "result": "hephaestus_tools:tool_binding"
+}

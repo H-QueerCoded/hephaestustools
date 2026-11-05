@@ -1,0 +1,35 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "allthemodium"
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_vibranium_bucket"
+    }
+  ],
+  "type": "hephaestus:melting",
+  "fuel": {
+    "amount": 50,
+    "id": "hephaestus:molten_blaze"
+  },
+  "ingredient": {
+    "type": "neoforge:components",
+    "components": {
+      "hephaestus_tools:part_material": "hephaestus_tools:vibranium"
+    },
+    "items": "hephaestus_tools:pick_head",
+    "strict": false
+  },
+  "result": {
+    "amount": 180,
+    "id": "hephaestus:molten_vibranium"
+  },
+  "temperature": 2000,
+  "time": 120
+}

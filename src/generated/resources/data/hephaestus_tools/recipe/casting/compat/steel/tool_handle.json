@@ -1,0 +1,31 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/steel"
+      }
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_steel_bucket"
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:tool_handle_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 100,
+  "count": 1,
+  "fluid": {
+    "amount": 90,
+    "id": "hephaestus:molten_steel"
+  },
+  "result": "hephaestus_tools:tool_handle"
+}

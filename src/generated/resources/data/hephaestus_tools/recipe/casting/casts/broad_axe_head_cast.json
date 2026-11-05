@@ -1,4 +1,10 @@
 {
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    }
+  ],
   "type": "hephaestus:casting_table",
   "cast": {
     "item": "hephaestus_tools:broad_axe_head"

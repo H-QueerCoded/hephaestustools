@@ -1,0 +1,37 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:or",
+      "values": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "enderio"
+        },
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "energizedpower"
+        }
+      ]
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_redstone_alloy_bucket"
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:tool_binding_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 100,
+  "count": 1,
+  "fluid": {
+    "amount": 90,
+    "id": "hephaestus:molten_redstone_alloy"
+  },
+  "result": "hephaestus_tools:tool_binding"
+}

@@ -1,0 +1,28 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "mysticalagradditions"
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "mysticalagradditions:molten_imperium_bucket"
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:tool_handle_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 100,
+  "count": 1,
+  "fluid": {
+    "amount": 90,
+    "id": "mysticalagradditions:molten_imperium"
+  },
+  "result": "hephaestus_tools:tool_handle"
+}

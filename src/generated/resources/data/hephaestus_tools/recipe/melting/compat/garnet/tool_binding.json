@@ -1,0 +1,42 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "irons_jewelry"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:gems/garnet"
+      }
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_garnet_bucket"
+    }
+  ],
+  "type": "hephaestus:melting",
+  "fuel": {
+    "amount": 50,
+    "id": "minecraft:lava"
+  },
+  "ingredient": {
+    "type": "neoforge:components",
+    "components": {
+      "hephaestus_tools:part_material": "hephaestus_tools:garnet"
+    },
+    "items": "hephaestus_tools:tool_binding",
+    "strict": false
+  },
+  "result": {
+    "amount": 90,
+    "id": "hephaestus:molten_garnet"
+  },
+  "temperature": 1000,
+  "time": 100
+}

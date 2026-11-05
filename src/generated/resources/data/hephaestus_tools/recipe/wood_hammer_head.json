@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "hephaestus_tools:pattern"
+  },
+  "result": {
+    "components": {
+      "hephaestus_tools:part_material": "hephaestus_tools:wood"
+    },
+    "count": 1,
+    "id": "hephaestus_tools:hammer_head"
+  }
+}

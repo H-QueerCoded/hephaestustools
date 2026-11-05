@@ -1,0 +1,31 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "colossal_reactors"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:ingots/stainless_steel"
+      }
+    }
+  ],
+  "type": "hephaestus:casting_table",
+  "cast": {
+    "item": "hephaestus_tools:small_blade_cast"
+  },
+  "cast_consumed": false,
+  "cooling_time": 120,
+  "count": 1,
+  "fluid": {
+    "amount": 180,
+    "id": "colossal_reactors:molten_stainless_steel"
+  },
+  "result": "hephaestus_tools:small_blade"
+}

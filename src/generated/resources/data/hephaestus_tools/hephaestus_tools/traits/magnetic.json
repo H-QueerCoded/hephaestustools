@@ -1,0 +1,14 @@
+{
+  "effects": [
+    {
+      "type": "hephaestus_tools:pull_items",
+      "condition": {
+        "type": "hephaestus_tools:equipped",
+        "slot": "hand"
+      },
+      "interval": 5,
+      "radius": 5.0,
+      "strength": 0.12
+    }
+  ]
+}

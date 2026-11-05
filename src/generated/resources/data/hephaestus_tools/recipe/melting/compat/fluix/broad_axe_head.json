@@ -1,0 +1,42 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "hephaestus"
+    },
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "ae2"
+    },
+    {
+      "type": "neoforge:not",
+      "value": {
+        "type": "neoforge:tag_empty",
+        "tag": "c:gems/fluix"
+      }
+    },
+    {
+      "type": "neoforge:item_exists",
+      "item": "hephaestus:molten_fluix_bucket"
+    }
+  ],
+  "type": "hephaestus:melting",
+  "fuel": {
+    "amount": 50,
+    "id": "minecraft:lava"
+  },
+  "ingredient": {
+    "type": "neoforge:components",
+    "components": {
+      "hephaestus_tools:part_material": "hephaestus_tools:fluix"
+    },
+    "items": "hephaestus_tools:broad_axe_head",
+    "strict": false
+  },
+  "result": {
+    "amount": 720,
+    "id": "hephaestus:molten_fluix"
+  },
+  "temperature": 1000,
+  "time": 240
+}

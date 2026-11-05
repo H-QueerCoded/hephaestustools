@@ -1,0 +1,20 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "m": {
+      "tag": "c:rods/wooden"
+    },
+    "s": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "pattern": [
+    "ms",
+    "sm"
+  ],
+  "result": {
+    "count": 1,
+    "id": "hephaestus_tools:pattern"
+  }
+}
