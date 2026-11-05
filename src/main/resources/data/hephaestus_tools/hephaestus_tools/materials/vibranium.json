@@ -1,0 +1,34 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "allthemodium"
+    }
+  ],
+  "id": "hephaestus_tools:vibranium",
+  "ingredient": {
+    "tag": "c:ingots/vibranium"
+  },
+  "color": 1410436,
+  "head_stats": {
+    "durability": 2200,
+    "mining_speed": 21.0,
+    "attack_damage": 7.0,
+    "attack_speed": 1.0,
+    "tier": 6,
+    "enchantability": 30,
+    "traits": [
+      { "id": "shock" },
+      { "id": "unbreakable" }
+    ]
+  },
+  "handle_stats": {
+    "durability_mult": 0.25,
+    "speed_mult": 0.35,
+    "damage_mult": 0.2,
+    "attack_speed_mult": 0.25
+  },
+  "binding_stats": {
+    "durability": 440
+  }
+}

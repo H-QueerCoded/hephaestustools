@@ -4,12 +4,17 @@
   "package": "com.titammods.hephaestus_tools.mixin",
   "compatibilityLevel": "JAVA_21",
   "refmap": "hephaestus_tools.refmap.json",
+  "plugin": "com.titammods.hephaestus_tools.compat.ForgeMixinPlugin",
   "mixins": [
-    "TableBlockEntityMixin",
     "ServerPlayerGameModeMixin",
-    "CastingTableRecipeMixin"
+    "SmithingTransformRecipeMixin"
   ],
-  "client": [],
+  "client": [
+    "client.CameraMixin",
+    "client.HumanoidModelMixin",
+    "client.SlotAccessor",
+    "client.ItemInHandLayerMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }

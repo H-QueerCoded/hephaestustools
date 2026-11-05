@@ -1,0 +1,13 @@
+{
+  "values": {
+    "#minecraft:in_enchanting_table": { "max_level": 5 },
+    "minecraft:efficiency":    { "max_level": 0 },
+    "minecraft:unbreaking":    { "max_level": 0 },
+    "minecraft:mending":       { "max_level": 0 },
+    "minecraft:fortune":       { "max_level": 0 },
+    "minecraft:looting":       { "max_level": 0 },
+    "minecraft:silk_touch":    { "max_level": 0 },
+    "minecraft:sharpness":     { "max_level": 0 },
+    "minecraft:sweeping_edge": { "max_level": 0 }
+  }
+}

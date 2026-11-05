@@ -1,0 +1,15 @@
+{
+  "replace": false,
+  "values": [
+    "hephaestus_tools:pickaxe",
+    "hephaestus_tools:sledge_hammer",
+    "hephaestus_tools:vein_hammer",
+    "hephaestus_tools:excavator",
+    "hephaestus_tools:mattock",
+    "hephaestus_tools:paxel",
+    "hephaestus_tools:hand_axe",
+    "hephaestus_tools:broad_axe",
+    "hephaestus_tools:kama",
+    "hephaestus_tools:scythe"
+  ]
+}

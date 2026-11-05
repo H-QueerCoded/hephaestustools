@@ -1,0 +1,34 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "ftbarmory"
+    }
+  ],
+  "id": "hephaestus_tools:aurichalcum",
+  "ingredient": {
+    "tag": "c:ingots/aurichalcum"
+  },
+  "color": 14119206,
+  "head_stats": {
+    "durability": 4500,
+    "mining_speed": 28.0,
+    "attack_damage": 10.5,
+    "attack_speed": 1.0,
+    "tier": 7,
+    "enchantability": 36,
+    "traits": [
+      { "id": "maintained" },
+      { "id": "unbreakable" }
+    ]
+  },
+  "handle_stats": {
+    "durability_mult": 0.35,
+    "speed_mult": 0.45,
+    "damage_mult": 0.25,
+    "attack_speed_mult": 0.35
+  },
+  "binding_stats": {
+    "durability": 900
+  }
+}

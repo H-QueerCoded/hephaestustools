@@ -1,0 +1,34 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "ftbarmory"
+    }
+  ],
+  "id": "hephaestus_tools:adamantite",
+  "ingredient": {
+    "tag": "c:ingots/adamantite"
+  },
+  "color": 4415332,
+  "head_stats": {
+    "durability": 2800,
+    "mining_speed": 24.0,
+    "attack_damage": 8.5,
+    "attack_speed": 1.0,
+    "tier": 6,
+    "enchantability": 32,
+    "traits": [
+      { "id": "dense" },
+      { "id": "unbreakable" }
+    ]
+  },
+  "handle_stats": {
+    "durability_mult": 0.3,
+    "speed_mult": 0.4,
+    "damage_mult": 0.22,
+    "attack_speed_mult": 0.3
+  },
+  "binding_stats": {
+    "durability": 560
+  }
+}

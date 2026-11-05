@@ -1,7 +1,7 @@
 {
   "id": "hephaestus_tools:rock",
   "ingredient": {
-    "item": "minecraft:cobblestone"
+    "tag": "minecraft:stone_tool_materials"
   },
   "color": 9211020,
   "head_stats": {
