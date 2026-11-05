@@ -4,7 +4,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
 public class ScalableElementScreen extends ElementScreen {
-
     public ScalableElementScreen(ResourceLocation texture, int x, int y, int w, int h, int texW, int texH) {
         super(texture, x, y, w, h, texW, texH);
     }

@@ -1,14 +1,14 @@
 package com.titammods.hephaestus_tools.tools.item;
 
-import net.minecraft.tags.BlockTags;
-
 import com.titammods.hephaestus_tools.tools.aoe.IAoeTool;
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+
 import java.util.List;
 import java.util.Set;
 
@@ -39,7 +39,12 @@ public final class ToolItems {
 
     public static class MattockItem extends ModifiableItem {
         public MattockItem(Properties props) { super(props); }
-        @Override public Set<ToolCategory> categories() { return Set.of(ToolCategory.PICKAXE, ToolCategory.AXE); }
+        @Override public Set<ToolCategory> categories() { return Set.of(ToolCategory.PICKAXE, ToolCategory.SHOVEL); }
+    }
+
+    public static class PaxelItem extends ModifiableItem {
+        public PaxelItem(Properties props) { super(props); }
+        @Override public Set<ToolCategory> categories() { return Set.of(ToolCategory.PICKAXE, ToolCategory.AXE, ToolCategory.SHOVEL); }
     }
 
     public static class ExcavatorItem extends ModifiableItem implements IAoeTool {

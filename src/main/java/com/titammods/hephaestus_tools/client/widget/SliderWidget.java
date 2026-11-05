@@ -4,7 +4,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.Mth;
 
 public class SliderWidget {
-
     public final ElementScreen slider;
     public final ElementScreen sliderHighlighted;
     public final ElementScreen sliderDisabled;

@@ -4,7 +4,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 
-import javax.annotation.Nullable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -33,7 +32,6 @@ public final class UpgradeRecipes {
         RECIPES.put(item, new UpgradeRecipe(modifierId, maxLevel, neededPerLevel));
     }
 
-    @Nullable
     public static UpgradeRecipe forItem(Item item) {
         return RECIPES.get(item);
     }

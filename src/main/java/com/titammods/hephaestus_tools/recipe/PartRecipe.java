@@ -6,11 +6,15 @@ import com.titammods.hephaestus_tools.materials.MaterialId;
 import com.titammods.hephaestus_tools.registry.ModRecipes;
 import com.titammods.hephaestus_tools.tools.part.ToolPartItem;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ExtraCodecs;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeInput;
 import net.minecraft.world.item.crafting.RecipeSerializer;
@@ -22,6 +26,23 @@ public record PartRecipe(
         ResourceLocation patternItem,
         int materialCost
 ) implements Recipe<RecipeInput> {
+
+    public static final MapCodec<PartRecipe> CODEC = RecordCodecBuilder.mapCodec(instance ->
+            instance.group(
+                    ResourceLocation.CODEC.fieldOf("result_part").forGetter(PartRecipe::resultPart),
+                    ResourceLocation.CODEC.fieldOf("pattern").forGetter(PartRecipe::patternItem),
+                    ExtraCodecs.POSITIVE_INT
+                            .optionalFieldOf("material_cost", 1).forGetter(PartRecipe::materialCost)
+            ).apply(instance, PartRecipe::new)
+    );
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, PartRecipe> STREAM_CODEC =
+            StreamCodec.composite(
+                    ResourceLocation.STREAM_CODEC, PartRecipe::resultPart,
+                    ResourceLocation.STREAM_CODEC, PartRecipe::patternItem,
+                    ByteBufCodecs.VAR_INT, PartRecipe::materialCost,
+                    PartRecipe::new
+            );
 
     @Override
     public boolean matches(RecipeInput input, Level level) {
@@ -35,8 +56,12 @@ public record PartRecipe(
 
     @Override
     public ItemStack getResultItem(HolderLookup.Provider registries) {
-        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(resultPart);
-        return item != null ? new ItemStack(item) : ItemStack.EMPTY;
+        return getResultItem();
+    }
+
+    public ItemStack getResultItem() {
+        Item item = BuiltInRegistries.ITEM.get(resultPart);
+        return item != null && item != Items.AIR ? new ItemStack(item) : ItemStack.EMPTY;
     }
 
     @Override
@@ -49,8 +74,18 @@ public record PartRecipe(
         return true;
     }
 
+    @Override
+    public String getGroup() {
+        return "";
+    }
+
+    @Override
+    public boolean showNotification() {
+        return false;
+    }
+
     public ItemStack createResult(MaterialId material) {
-        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(resultPart);
+        Item item = BuiltInRegistries.ITEM.get(resultPart);
         if (item instanceof ToolPartItem partItem) {
             return partItem.withMaterial(material);
         }
@@ -69,22 +104,9 @@ public record PartRecipe(
 
     public static class Serializer implements RecipeSerializer<PartRecipe> {
 
-        public static final MapCodec<PartRecipe> CODEC = RecordCodecBuilder.mapCodec(instance ->
-                instance.group(
-                        ResourceLocation.CODEC.fieldOf("result_part").forGetter(PartRecipe::resultPart),
-                        ResourceLocation.CODEC.fieldOf("pattern").forGetter(PartRecipe::patternItem),
-                        net.minecraft.util.ExtraCodecs.POSITIVE_INT
-                                .optionalFieldOf("material_cost", 1).forGetter(PartRecipe::materialCost)
-                ).apply(instance, PartRecipe::new)
-        );
+        public static final MapCodec<PartRecipe> CODEC = PartRecipe.CODEC;
 
-        public static final StreamCodec<RegistryFriendlyByteBuf, PartRecipe> STREAM_CODEC =
-                StreamCodec.composite(
-                        ResourceLocation.STREAM_CODEC, PartRecipe::resultPart,
-                        ResourceLocation.STREAM_CODEC, PartRecipe::patternItem,
-                        ByteBufCodecs.VAR_INT, PartRecipe::materialCost,
-                        PartRecipe::new
-                );
+        public static final StreamCodec<RegistryFriendlyByteBuf, PartRecipe> STREAM_CODEC = PartRecipe.STREAM_CODEC;
 
         @Override
         public MapCodec<PartRecipe> codec() { return CODEC; }

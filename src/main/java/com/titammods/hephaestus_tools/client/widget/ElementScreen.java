@@ -4,7 +4,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 
 public class ElementScreen {
-
     public ResourceLocation texture;
     public final int x;
     public final int y;

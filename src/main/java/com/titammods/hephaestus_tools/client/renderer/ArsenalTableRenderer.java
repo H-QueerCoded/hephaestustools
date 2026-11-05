@@ -1,33 +1,33 @@
 package com.titammods.hephaestus_tools.client.renderer;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.titammods.hephaestus_tools.client.workbench.WorkbenchDrawer;
+import com.titammods.hephaestus_tools.client.workbench.WorkbenchRenderer;
+import com.titammods.hephaestus_tools.config.HephaestusConfig;
 import com.titammods.hephaestus_tools.tables.blockentity.ArsenalTableBlockEntity;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.client.resources.model.BakedModel;
-import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.client.model.data.ModelData;
+import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.world.phys.AABB;
 
 public class ArsenalTableRenderer implements BlockEntityRenderer<ArsenalTableBlockEntity> {
-
-    private final BlockRenderDispatcher dispatcher;
+    private final ItemRenderer itemRenderer;
 
     public ArsenalTableRenderer(BlockEntityRendererProvider.Context ctx) {
-        this.dispatcher = ctx.getBlockRenderDispatcher();
+        this.itemRenderer = ctx.getItemRenderer();
     }
 
     @Override
     public void render(ArsenalTableBlockEntity be, float partialTick, PoseStack pose,
                        MultiBufferSource buffer, int light, int overlay) {
-        BlockState state = be.getBlockState();
-        BakedModel model = dispatcher.getBlockModel(state);
-        RenderType rt = RenderType.cutout();
-        VertexConsumer vc = buffer.getBuffer(rt);
-        dispatcher.getModelRenderer().renderModel(
-                pose.last(), vc, state, model, 1f, 1f, 1f, light, overlay, ModelData.EMPTY, rt);
+        if (!HephaestusConfig.modernInterface()) return;
+        WorkbenchDrawer.render(be, itemRenderer, pose, buffer, light, overlay);
+        WorkbenchRenderer.renderItems(be, itemRenderer, pose, buffer, light, overlay);
+    }
+
+    @Override
+    public AABB getRenderBoundingBox(ArsenalTableBlockEntity blockEntity) {
+        return new AABB(blockEntity.getBlockPos()).inflate(2.0);
     }
 }

@@ -1,24 +1,29 @@
 package com.titammods.hephaestus_tools.tools.helper;
 
+import com.titammods.hephaestus_tools.effect.ToolEffects;
 import com.titammods.hephaestus_tools.materials.MaterialId;
 import com.titammods.hephaestus_tools.materials.MaterialManager;
 import com.titammods.hephaestus_tools.materials.MaterialStats;
-import com.titammods.hephaestus_tools.tools.nbt.ToolConstructionData;
-import com.titammods.hephaestus_tools.tools.nbt.ToolPropertiesData;
+import com.titammods.hephaestus_tools.table.ToolXp;
+import com.titammods.hephaestus_tools.tables.layout.ToolLayouts;
+import com.titammods.hephaestus_tools.tools.item.ModifiableItem;
 import com.titammods.hephaestus_tools.tools.modifier.ModifierEffect;
 import com.titammods.hephaestus_tools.tools.modifier.ModifierEffects;
 import com.titammods.hephaestus_tools.tools.modifier.ModifierStatContext;
+import com.titammods.hephaestus_tools.tools.nbt.ToolConstructionData;
+import com.titammods.hephaestus_tools.tools.nbt.ToolPropertiesData;
+import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
+import com.titammods.hephaestus_tools.tools.part.ToolPartItem;
+import com.titammods.hephaestus_tools.tools.stat.HarvestTier;
 import com.titammods.hephaestus_tools.tools.stat.ToolStats;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Tiers;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public final class ToolBuildHandler {
 
-    public static final float HANDLE_STAT_SHARE = 0.15f;
-    public static final float BINDING_STAT_SHARE = 0.25f;
     private static final float EXTRA_PART_WEIGHT = 0.5f;
 
     public record SupportStats(float durability, float miningSpeed, float attackDamage, float enchantability) {}
@@ -27,14 +32,10 @@ public final class ToolBuildHandler {
 
     private ToolBuildHandler() {}
 
-    public static float shareForSlot(int slot) {
-        return slot == 2 ? BINDING_STAT_SHARE : HANDLE_STAT_SHARE;
-    }
-
     public static SupportStats supportStats(MaterialId id, int slot) {
         MaterialManager mm = MaterialManager.getInstance();
         MaterialStats source = mm.getStats(id);
-        float share = shareForSlot(slot);
+        float share = mm.getStatsForSlot(id, slot == 2 ? 2 : 1).headShare();
         float durability = slot == 2
                 ? mm.getStatsForSlot(id, 2).durability()
                 : source.durability() * share;
@@ -45,14 +46,14 @@ public final class ToolBuildHandler {
                 source.enchantability() * share);
     }
 
-    public static ItemStack buildTool(net.minecraft.world.item.Item toolItem, List<MaterialId> materials) {
+    public static ItemStack buildTool(Item toolItem, List<MaterialId> materials) {
         ItemStack stack = new ItemStack(toolItem);
-        com.titammods.hephaestus_tools.tools.nbt.ToolStack.setMaterials(stack, List.copyOf(materials));
-        com.titammods.hephaestus_tools.tools.nbt.ToolStack.recalculate(stack);
+        ToolStack.setMaterials(stack, List.copyOf(materials));
+        ToolStack.recalculate(stack);
         return stack;
     }
 
-    public static ItemStack buildSingleMaterial(net.minecraft.world.item.Item toolItem, MaterialId materialId) {
+    public static ItemStack buildSingleMaterial(Item toolItem, MaterialId materialId) {
         int partCount = getPartCount(toolItem);
         List<MaterialId> materials = new ArrayList<>(partCount);
         for (int i = 0; i < partCount; i++) {
@@ -61,8 +62,8 @@ public final class ToolBuildHandler {
         return buildTool(toolItem, materials);
     }
 
-    public static int getPartCount(net.minecraft.world.item.Item toolItem) {
-        for (var layout : com.titammods.hephaestus_tools.tables.layout.ToolLayouts.ALL) {
+    public static int getPartCount(Item toolItem) {
+        for (var layout : ToolLayouts.ALL) {
             if (layout.iconItem() == toolItem) {
                 return Math.max(1, layout.inputs().size());
             }
@@ -70,10 +71,10 @@ public final class ToolBuildHandler {
         return 3;
     }
 
-    public static List<net.minecraft.world.item.Item> getToolParts(net.minecraft.world.item.Item toolItem) {
-        for (var layout : com.titammods.hephaestus_tools.tables.layout.ToolLayouts.ALL) {
+    public static List<Item> getToolParts(Item toolItem) {
+        for (var layout : ToolLayouts.ALL) {
             if (layout.iconItem() == toolItem) {
-                List<net.minecraft.world.item.Item> parts = new ArrayList<>();
+                List<Item> parts = new ArrayList<>();
                 for (var def : layout.inputs()) {
                     if (def.expectedPart() != null) parts.add(def.expectedPart());
                 }
@@ -81,6 +82,13 @@ public final class ToolBuildHandler {
             }
         }
         return List.of();
+    }
+
+    public static int partRole(List<Item> layoutParts, int index) {
+        if (index < layoutParts.size() && layoutParts.get(index) instanceof ToolPartItem tp) {
+            return tp.getPartSlot();
+        }
+        return (index == 0) ? 0 : (index == 1) ? 1 : (index == 2) ? 2 : 1;
     }
 
     public static ToolPropertiesData calculateProperties(ItemStack stack, ToolConstructionData construction) {
@@ -91,21 +99,14 @@ public final class ToolBuildHandler {
         ToolPropertiesData.Builder builder = ToolPropertiesData.builder();
 
         MaterialManager mm = MaterialManager.getInstance();
-        List<net.minecraft.world.item.Item> layoutParts = getToolParts(stack.getItem());
+        List<Item> layoutParts = getToolParts(stack.getItem());
 
         List<MaterialStats> headParts = new ArrayList<>();
         List<PartContribution> handleParts = new ArrayList<>();
         List<PartContribution> bindingParts = new ArrayList<>();
         for (int i = 0; i < materials.size(); i++) {
-            int role;
-            if (i < layoutParts.size()
-                    && layoutParts.get(i) instanceof com.titammods.hephaestus_tools.tools.part.ToolPartItem tp) {
-                role = tp.getPartSlot();
-            } else {
-                role = (i == 0) ? 0 : (i == 1) ? 1 : (i == 2) ? 2 : 1;
-            }
             MaterialId id = materials.get(i);
-            switch (role) {
+            switch (partRole(layoutParts, i)) {
                 case 0 -> headParts.add(mm.getStatsForSlot(id, 0));
                 case 2 -> bindingParts.add(new PartContribution(id, mm.getStatsForSlot(id, 2)));
                 default -> handleParts.add(new PartContribution(id, mm.getStatsForSlot(id, 1)));
@@ -127,7 +128,7 @@ public final class ToolBuildHandler {
         baseMiningSpeed /= hc;
         baseAttackDamage /= hc;
         baseAttackSpeed /= hc;
-        Tiers harvestTier = headParts.get(0).tier();
+        HarvestTier harvestTier = headParts.get(0).tier();
         int baseEnchantability = Math.round(enchAccum / (float) hc);
 
         float durabilityMult = 1.0f;
@@ -172,7 +173,7 @@ public final class ToolBuildHandler {
         float finalAttackSpeed = Math.max(0f, baseAttackSpeed * attackSpeedMult);
         int finalEnchantability = Math.max(1, baseEnchantability + Math.round(supportEnchantability));
 
-        if (stack.getItem() instanceof com.titammods.hephaestus_tools.tools.item.ModifiableItem mi) {
+        if (stack.getItem() instanceof ModifiableItem mi) {
             finalAttackDamage = Math.max(0f,
                     (baseAttackDamage + supportAttackDamage + mi.getAttackDamageBonus())
                             * damageMult * mi.getAttackDamageMultiplier());
@@ -182,11 +183,9 @@ public final class ToolBuildHandler {
 
         ModifierStatContext ctx = new ModifierStatContext(
                 finalDurability, finalMiningSpeed, finalAttackDamage,
-                finalAttackSpeed, finalEnchantability, harvestTier);
+                finalAttackSpeed, finalEnchantability, harvestTier, ToolXp.getLevel(stack));
 
-        for (var trait : com.titammods.hephaestus_tools.materials.trait.MaterialTrait.collect(construction.materials())) {
-            trait.applyStats(ctx);
-        }
+        ToolEffects.modifyStats(stack.getItem(), construction.materials(), ctx);
 
         List<String> activeTraits = new ArrayList<>();
         for (ToolConstructionData.ModifierEntry modEntry : construction.modifiers()) {
@@ -205,9 +204,9 @@ public final class ToolBuildHandler {
                 .enchantability(ctx.enchantability)
                 .traits(activeTraits);
 
-        if (ctx.fortune > 0)      builder.stat(ToolStats.FORTUNE, ctx.fortune);
-        if (ctx.looting > 0)      builder.stat(ToolStats.LOOTING, ctx.looting);
-        if (ctx.indestructible)   builder.stat(ToolStats.INDESTRUCTIBLE, 1f);
+        if (ctx.fortune > 0)    builder.stat(ToolStats.FORTUNE, ctx.fortune);
+        if (ctx.looting > 0)    builder.stat(ToolStats.LOOTING, ctx.looting);
+        if (ctx.indestructible) builder.stat(ToolStats.INDESTRUCTIBLE, 1f);
 
         return builder.build();
     }

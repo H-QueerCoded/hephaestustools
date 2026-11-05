@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class PatternSprite {
-
     private static final ResourceLocation TEXTURE = ResourceLocation.fromNamespaceAndPath(
             HephaestusTools.MOD_ID, "textures/gui/tinker.png");
 

@@ -1,19 +1,31 @@
 package com.titammods.hephaestus_tools.tools.nbt;
 
+import com.titammods.hephaestus_tools.api.event.ToolRecalculatedEvent;
+import com.titammods.hephaestus_tools.effect.ToolEffects;
 import com.titammods.hephaestus_tools.materials.MaterialId;
 import com.titammods.hephaestus_tools.materials.MaterialManager;
+import com.titammods.hephaestus_tools.materials.tier.TierManager;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits;
 import com.titammods.hephaestus_tools.registry.ModComponents;
-import com.titammods.hephaestus_tools.tools.helper.ToolBuildHandler;
 import com.titammods.hephaestus_tools.tools.item.ModifiableItem;
 import com.titammods.hephaestus_tools.tools.item.ToolCategory;
+import com.titammods.hephaestus_tools.tools.helper.ToolBuildHandler;
+import com.titammods.hephaestus_tools.tools.stat.HarvestTier;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.EquipmentSlotGroup;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Tiers;
+import net.minecraft.world.item.component.ItemAttributeModifiers;
 import net.minecraft.world.item.component.Tool;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.NeoForge;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -31,7 +43,11 @@ public final class ToolStack {
 
     public static boolean isUsable(ItemStack stack) {
         return !stack.isEmpty() && stack.getItem() instanceof ModifiableItem
-                && isInitialized(stack) && !isBroken(stack);
+                && isInitialized(stack) && efficiency(stack) > 0f;
+    }
+
+    public static float efficiency(ItemStack stack) {
+        return isBroken(stack) ? ToolEffects.brokenEfficiency(stack) : 1f;
     }
 
     public static List<MaterialId> getMaterials(ItemStack stack) {
@@ -92,7 +108,7 @@ public final class ToolStack {
         return getProperties(stack).getEnchantability();
     }
 
-    public static Tiers getHarvestTier(ItemStack stack) {
+    public static HarvestTier getHarvestTier(ItemStack stack) {
         return getProperties(stack).getHarvestTier();
     }
 
@@ -108,16 +124,37 @@ public final class ToolStack {
         stack.set(ModComponents.TOOL_CONSTRUCTION.get(), old.withDamage(clamped).withBroken(broken));
         stack.set(DataComponents.DAMAGE, clamped);
         if (broken != old.broken()) {
-            updateToolComponent(stack, getProperties(stack));
+            ToolPropertiesData properties = getProperties(stack);
+            updateAttributeModifiers(stack, properties);
+            updateToolComponent(stack, properties);
         }
     }
 
     public static void refreshIfStale(ItemStack stack) {
         ToolPropertiesData data = stack.get(ModComponents.TOOL_PROPERTIES.get());
         if (data == null || !isInitialized(stack)) return;
-        MaterialManager.getInstance().fingerprint(getMaterials(stack)).ifPresent(hash -> {
-            if (hash != data.materialsHash()) recalculate(stack);
-        });
+        OptionalInt hash = fingerprint(stack.getItem(), getConstruction(stack));
+        if (hash.isPresent() && hash.getAsInt() != data.materialsHash()) recalculate(stack);
+    }
+
+    public static void refresh(ItemStack stack) {
+        if (!(stack.getItem() instanceof ModifiableItem) || !isInitialized(stack)) return;
+        if (stack.get(ModComponents.TOOL_PROPERTIES.get()) == null) recalculate(stack);
+        else refreshIfStale(stack);
+    }
+
+    private static OptionalInt fingerprint(Item tool, ToolConstructionData construction) {
+        List<MaterialId> materials = construction.materials();
+        OptionalInt hash = MaterialManager.getInstance().fingerprint(materials);
+        if (hash.isEmpty()) return hash;
+        int value = 31 * hash.getAsInt() + ToolTraits.fingerprint(tool, materials);
+        value = 31 * value + TierManager.getInstance().fingerprint();
+        value = 31 * value + BuiltInRegistries.ITEM.getKey(tool).hashCode();
+        for (ToolConstructionData.ModifierEntry modifier : construction.modifiers()) {
+            value = 31 * value + modifier.id().hashCode();
+            value = 31 * value + modifier.level();
+        }
+        return OptionalInt.of(value);
     }
 
     public static boolean isBroken(ItemStack stack) {
@@ -129,37 +166,63 @@ public final class ToolStack {
         if (!construction.isInitialized()) return;
 
         ToolPropertiesData properties = ToolBuildHandler.calculateProperties(stack, construction)
-                .withMaterialsHash(MaterialManager.getInstance().fingerprint(construction.materials()).orElse(0));
+                .withMaterialsHash(fingerprint(stack.getItem(), construction).orElse(0));
 
         stack.set(ModComponents.TOOL_PROPERTIES.get(), properties);
 
         int damage = Math.max(0, Math.min(construction.damage(), properties.getDurability()));
         stack.set(ModComponents.TOOL_CONSTRUCTION.get(), construction.withDamage(damage)
                 .withBroken(damage >= properties.getDurability()));
-        stack.set(DataComponents.MAX_DAMAGE, properties.getDurability());
         stack.set(DataComponents.DAMAGE, damage);
-
-        stack.remove(DataComponents.ATTRIBUTE_MODIFIERS);
+        updateAttributeModifiers(stack, properties);
 
         updateToolComponent(stack, properties);
+        stack.set(DataComponents.MAX_DAMAGE, properties.getDurability());
+        NeoForge.EVENT_BUS.post(new ToolRecalculatedEvent(stack));
+    }
+
+    private static void updateAttributeModifiers(ItemStack stack, ToolPropertiesData properties) {
+        float attackDamage = Math.max(0f, properties.getAttackDamage()) * efficiency(stack);
+        float attackSpeed = properties.getAttackSpeed() - 4.0f;
+
+        ItemAttributeModifiers modifiers = ItemAttributeModifiers.builder()
+                .add(Attributes.ATTACK_DAMAGE,
+                        new AttributeModifier(Item.BASE_ATTACK_DAMAGE_ID, attackDamage,
+                                AttributeModifier.Operation.ADD_VALUE),
+                        EquipmentSlotGroup.MAINHAND)
+                .add(Attributes.ATTACK_SPEED,
+                        new AttributeModifier(Item.BASE_ATTACK_SPEED_ID, attackSpeed,
+                                AttributeModifier.Operation.ADD_VALUE),
+                        EquipmentSlotGroup.MAINHAND)
+                .build();
+
+        ItemAttributeModifiers current = stack.getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
+        List<ItemAttributeModifiers.Entry> entries = new ArrayList<>(current.modifiers());
+        entries.removeIf(entry -> entry.modifier().id().equals(Item.BASE_ATTACK_DAMAGE_ID)
+                || entry.modifier().id().equals(Item.BASE_ATTACK_SPEED_ID));
+        entries.addAll(modifiers.modifiers());
+        stack.set(DataComponents.ATTRIBUTE_MODIFIERS, new ItemAttributeModifiers(List.copyOf(entries), current.showInTooltip()));
     }
 
     private static void updateToolComponent(ItemStack stack, ToolPropertiesData properties) {
         if (!(stack.getItem() instanceof ModifiableItem modItem)) return;
 
-        if (isBroken(stack)) {
+        Set<ToolCategory> categories = modItem.categories();
+        boolean sword = categories.contains(ToolCategory.SWORD);
+
+        float efficiency = efficiency(stack);
+        if (efficiency <= 0f) {
             stack.set(DataComponents.TOOL, new Tool(List.of(), 0.0f, 1));
             return;
         }
 
-        Set<ToolCategory> categories = modItem.categories();
-        Tiers tier = properties.getHarvestTier();
-        float speed = Math.max(0.1f, properties.getMiningSpeed());
+        HarvestTier tier = properties.getHarvestTier();
+        float speed = Math.max(0.1f, properties.getMiningSpeed()) * efficiency;
 
         List<Tool.Rule> rules = new ArrayList<>();
-        rules.add(Tool.Rule.deniesDrops(tier.getIncorrectBlocksForDrops()));
+        rules.add(Tool.Rule.deniesDrops(tier.incorrectForTag()));
 
-        if (categories.contains(ToolCategory.SWORD)) {
+        if (sword) {
             rules.add(Tool.Rule.minesAndDrops(List.of(Blocks.COBWEB), Math.max(15.0f, speed)));
         }
 

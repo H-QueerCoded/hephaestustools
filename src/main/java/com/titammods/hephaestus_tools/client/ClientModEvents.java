@@ -3,34 +3,63 @@ package com.titammods.hephaestus_tools.client;
 import com.titammods.hephaestus_tools.HephaestusTools;
 import com.titammods.hephaestus_tools.client.renderer.ArsenalTableRenderer;
 import com.titammods.hephaestus_tools.client.renderer.ToolItemRenderer;
+import com.titammods.hephaestus_tools.client.workbench.AnimHammer;
+import com.titammods.hephaestus_tools.client.workbench.WorkbenchHandLayer;
+import com.titammods.hephaestus_tools.client.workbench.WorkbenchPlayerAnim;
 import com.titammods.hephaestus_tools.registry.ModBlocks;
 import com.titammods.hephaestus_tools.registry.ModItems;
 import com.titammods.hephaestus_tools.registry.ModMenus;
 import com.titammods.hephaestus_tools.tables.screen.ArsenalTableScreen;
+import com.titammods.hephaestus_tools.tables.screen.ForgeStorageScreen;
+import com.titammods.hephaestus_tools.tables.screen.WorkbenchScreen;
+import com.titammods.hephaestus_tools.tools.helper.ToolEnchantments;
+import com.titammods.hephaestus_tools.tools.item.ModifiableItem;
 import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
+import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.entity.player.PlayerRenderer;
+import net.minecraft.client.resources.PlayerSkin;
+import net.minecraft.server.packs.resources.ResourceManagerReloadListener;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.EntityRenderersEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent;
 import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
+import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 
 @EventBusSubscriber(modid = HephaestusTools.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public class ClientModEvents {
+    private static Item[] tools() {
+        return ModItems.TOOLS.stream().map(d -> (Item) d.get()).toArray(Item[]::new);
+    }
 
-    private static final java.util.function.Supplier<net.minecraft.world.item.Item[]> TOOLS = () ->
-            new net.minecraft.world.item.Item[] {
-                    ModItems.PICKAXE.get(), ModItems.SLEDGE_HAMMER.get(), ModItems.VEIN_HAMMER.get(),
-                    ModItems.MATTOCK.get(), ModItems.EXCAVATOR.get(), ModItems.HAND_AXE.get(),
-                    ModItems.BROAD_AXE.get(), ModItems.KAMA.get(), ModItems.SCYTHE.get(),
-                    ModItems.DAGGER.get(), ModItems.SWORD.get(), ModItems.CLEAVER.get()
-            };
+    private static Item[] parts() {
+        return ModItems.PARTS.stream().map(d -> (Item) d.get()).toArray(Item[]::new);
+    }
+
+    @SubscribeEvent
+    public static void onClientSetup(FMLClientSetupEvent event) {
+        event.enqueueWork(WorkbenchPlayerAnim::register);
+    }
+
+    @SubscribeEvent
+    public static void registerAdditionalModels(ModelEvent.RegisterAdditional event) {
+        event.register(AnimHammer.MODEL);
+    }
 
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.ARSENAL_TABLE.get(), ArsenalTableScreen::new);
+        event.register(ModMenus.WORKBENCH.get(), WorkbenchScreen::new);
+        event.register(ModMenus.FORGE_STORAGE.get(), ForgeStorageScreen::new);
     }
 
     @SubscribeEvent
@@ -39,14 +68,17 @@ public class ClientModEvents {
     }
 
     @SubscribeEvent
+    public static void addLayers(EntityRenderersEvent.AddLayers event) {
+        for (PlayerSkin.Model skin : event.getSkins()) {
+            EntityRenderer<? extends Player> renderer = event.getSkin(skin);
+            if (renderer instanceof PlayerRenderer player) player.addLayer(new WorkbenchHandLayer(player));
+        }
+    }
+
+    @SubscribeEvent
     public static void registerItemColors(RegisterColorHandlersEvent.Item event) {
-        event.register(ToolColorHandler.INSTANCE, TOOLS.get());
-        event.register(PartColorHandler.INSTANCE,
-                ModItems.PICK_HEAD.get(), ModItems.HAMMER_HEAD.get(), ModItems.SMALL_AXE_HEAD.get(),
-                ModItems.BROAD_AXE_HEAD.get(), ModItems.ADZE_HEAD.get(), ModItems.LARGE_PLATE.get(),
-                ModItems.SMALL_BLADE.get(), ModItems.LARGE_BLADE.get(),
-                ModItems.TOOL_HANDLE.get(), ModItems.TOUGH_HANDLE.get(),
-                ModItems.TOOL_BINDING.get(), ModItems.TOUGH_BINDING.get());
+        event.register(ToolColorHandler.INSTANCE, tools());
+        event.register(PartColorHandler.INSTANCE, parts());
     }
 
     @SubscribeEvent
@@ -56,6 +88,23 @@ public class ClientModEvents {
             @Override
             public BlockEntityWithoutLevelRenderer getCustomRenderer() { return renderer; }
         };
-        event.registerItem(ext, TOOLS.get());
+        event.registerItem(ext, tools());
+    }
+
+    @SubscribeEvent
+    public static void registerReloadListeners(RegisterClientReloadListenersEvent event) {
+        ResourceManagerReloadListener listener = manager -> ToolItemRenderer.clearTextureCache();
+        event.registerReloadListener(listener);
+    }
+
+    @EventBusSubscriber(modid = HephaestusTools.MOD_ID, value = Dist.CLIENT)
+    public static final class GameEvents {
+        private GameEvents() {}
+
+        @SubscribeEvent(priority = EventPriority.LOWEST)
+        public static void onItemTooltip(ItemTooltipEvent event) {
+            if (!(event.getItemStack().getItem() instanceof ModifiableItem)) return;
+            event.getToolTip().removeIf(ToolEnchantments::isMergedLine);
+        }
     }
 }

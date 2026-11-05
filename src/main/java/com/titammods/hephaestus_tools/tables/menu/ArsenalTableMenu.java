@@ -1,24 +1,31 @@
 package com.titammods.hephaestus_tools.tables.menu;
 
+import com.titammods.hephaestus_tools.effect.ToolEffects;
 import com.titammods.hephaestus_tools.materials.MaterialId;
 import com.titammods.hephaestus_tools.materials.MaterialManager;
 import com.titammods.hephaestus_tools.registry.ModMenus;
 import com.titammods.hephaestus_tools.table.ArsenalTableLayout;
 import com.titammods.hephaestus_tools.table.ToolAssembly;
+import com.titammods.hephaestus_tools.table.ToolMastery;
+import com.titammods.hephaestus_tools.table.ToolUpgrades;
+import com.titammods.hephaestus_tools.tables.blockentity.ArsenalTableBlockEntity;
 import com.titammods.hephaestus_tools.tools.helper.ToolBuildHandler;
 import com.titammods.hephaestus_tools.tools.item.ModifiableItem;
 import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
 import com.titammods.hephaestus_tools.tools.part.ToolPartItem;
-import com.titammods.hephaestus_tools.tables.blockentity.ArsenalTableBlockEntity;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.DataSlot;
 import net.minecraft.world.inventory.ClickType;
+import net.minecraft.world.inventory.DataSlot;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.SlotItemHandler;
+
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,17 +34,24 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
     public static final int MACHINE_SLOTS = 6;
     public static final int TAB_BASE = 10, APPLY_BASE = 200;
     public static final int MASTERY_SELECT_BASE = 300;
-    private int activeTab = 0;
     public static final int REPAIR_DIVISOR = 4;
-    private final ArsenalTableBlockEntity blockEntity;
-    private int selectedTool = 0;
+
+    protected int activeTab = 0;
+    protected final ArsenalTableBlockEntity blockEntity;
+    protected final Player user;
+    protected int selectedTool = 0;
 
     public ArsenalTableMenu(int id, Inventory inv, ArsenalTableBlockEntity be) {
-        super(ModMenus.ARSENAL_TABLE.get(), id);
+        this(ModMenus.ARSENAL_TABLE.get(), id, inv, be);
+    }
+
+    protected ArsenalTableMenu(MenuType<?> type, int id, Inventory inv, ArsenalTableBlockEntity be) {
+        super(type, id);
         blockEntity = be;
+        user = inv.player;
         ToolAssembly.init();
         addSlot(new SlotItemHandler(be.getUpgradeSlot(), 0, 112, 56) {
-            @Override public boolean isActive() { return activeTab != 0; }
+            @Override public boolean isActive() { return activeTab != 0 && slotsVisible(); }
             @Override public boolean mayPlace(ItemStack s) {
                 return isActive() && s.getItem() instanceof ModifiableItem && ToolStack.isInitialized(s);
             }
@@ -48,23 +62,29 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
             addSlot(new SlotItemHandler(be.getInputSlots(), i,
                     positions[i][0] + ArsenalTableLayout.SLOT_ITEM_INSET,
                     positions[i][1] + ArsenalTableLayout.SLOT_ITEM_INSET_Y) {
-                @Override public boolean isActive() { return activeTab == 0 && (isRepair() ? part == 0 : part < parts().size()); }
-                @Override public boolean mayPlace(ItemStack s) { return isActive() && accepts(part, s); }
+                @Override public boolean isActive() { return slotsVisible() && inputActive(part); }
+                @Override public boolean mayPlace(ItemStack s) { return isActive() && inputAccepts(part, s); }
+                @Override public int getMaxStackSize() { return inputLimit(part); }
+                @Override public int getMaxStackSize(ItemStack s) { return inputLimit(part); }
+                @Override public Optional<ItemStack> tryRemove(int amount, int maxAmount, Player player) {
+                    return super.tryRemove(Math.min(amount, Math.max(1, getItem().getMaxStackSize())), maxAmount, player);
+                }
             });
         }
         addSlot(new SlotItemHandler(be.getOutputSlot(), 0,
                 ArsenalTableLayout.OUTPUT_X + ArsenalTableLayout.OUTPUT_ITEM_INSET,
                 ArsenalTableLayout.OUTPUT_Y + ArsenalTableLayout.OUTPUT_ITEM_INSET) {
-            @Override public boolean isActive() { return activeTab == 0; }
+            @Override public boolean isActive() { return activeTab == 0 && slotsVisible(); }
             @Override public boolean mayPlace(ItemStack s) {
                 return isActive() && getItem().isEmpty() && s.getItem() instanceof ModifiableItem && ToolStack.isInitialized(s);
             }
         });
         for (int row = 0; row < 3; row++) for (int col = 0; col < 9; col++)
-            addSlot(new Slot(inv, col + row * 9 + 9, ArsenalTableLayout.INV_X + col * 18,
-                    ArsenalTableLayout.INV_Y + row * 18));
+            addSlot(inventorySlot(inv, col + row * 9 + 9, ArsenalTableLayout.INV_X + col * 18,
+                    ArsenalTableLayout.INV_Y + row * 18, false));
         for (int col = 0; col < 9; col++)
-            addSlot(new Slot(inv, col, ArsenalTableLayout.INV_X + col * 18, ArsenalTableLayout.INV_Y + 58));
+            addSlot(inventorySlot(inv, col, ArsenalTableLayout.INV_X + col * 18, ArsenalTableLayout.INV_Y + 58, true));
+        selectedTool = initialSelection(inv.player);
         addDataSlot(new DataSlot() {
             @Override public int get() { return selectedTool; }
             @Override public void set(int value) { selectedTool = value; }
@@ -75,17 +95,73 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
         });
     }
 
+    protected Slot inventorySlot(Inventory inv, int index, int x, int y, boolean hotbar) {
+        return new Slot(inv, index, x, y);
+    }
+
+    protected int initialSelection(Player player) {
+        return 0;
+    }
+
+    protected boolean slotsVisible() {
+        return true;
+    }
+
+    protected boolean inputActive(int part) {
+        return activeTab == 0 && (isRepair() ? part == 0 : part < parts().size());
+    }
+
+    protected boolean inputAccepts(int part, ItemStack stack) {
+        return accepts(part, stack);
+    }
+
+    protected int inputLimit(int part) {
+        return 1;
+    }
+
+    protected int quickMoveTabEnd() {
+        return 1;
+    }
+
     public int getActiveTab() { return activeTab; }
+
     public int getSelectedTool() { return selectedTool; }
+
     public boolean isRepair() { return activeTab == 0 && !output().isEmpty() && ToolStack.isInitialized(output()); }
+
     public ArsenalTableBlockEntity getBlockEntity() { return blockEntity; }
+
     public List<Item> parts() { return isRepair() ? List.of() : assembly().parts(); }
+
     public ToolAssembly assembly() { return ToolAssembly.REGISTRY.get(Math.max(0, selectedTool)); }
+
     public ItemStack input(int i) { return slots.get(i + 1).getItem(); }
+
     public ItemStack tool() { return activeTab == 0 ? output() : slots.get(0).getItem(); }
+
     public ItemStack output() { return slots.get(5).getItem(); }
 
-    private boolean accepts(int part, ItemStack stack) {
+    public static int repairPerMaterial(ItemStack tool, LivingEntity repairer) {
+        return Math.max(1, ToolEffects.modifyRepair(repairer, tool, baseRepairPerMaterial(tool)));
+    }
+
+    private static int baseRepairPerMaterial(ItemStack tool) {
+        return Math.max(1, (ToolStack.getDurability(tool) + REPAIR_DIVISOR - 1) / REPAIR_DIVISOR);
+    }
+
+    public int repairPercent() {
+        if (!isRepair()) return 100 / REPAIR_DIVISOR;
+        ItemStack tool = output();
+        return Math.round(100f / REPAIR_DIVISOR * repairPerMaterial(tool, user) / baseRepairPerMaterial(tool));
+    }
+
+    public boolean isRepairMaterial(ItemStack stack) {
+        if (stack.isEmpty() || !ToolStack.isInitialized(tool())) return false;
+        var material = MaterialManager.getInstance().getMaterial(ToolStack.getMaterial(tool(), 0));
+        return material != null && material.ingredient().test(stack);
+    }
+
+    protected boolean accepts(int part, ItemStack stack) {
         if (stack.isEmpty()) return false;
         if (isRepair()) {
             if (part != 0 || !ToolStack.isInitialized(tool())) return false;
@@ -98,7 +174,7 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
                 && MaterialManager.getInstance().getMaterial(p.getMaterial(stack)) != null;
     }
 
-    private int swapIndexFor(ItemStack tool, ItemStack stack) {
+    protected int swapIndexFor(ItemStack tool, ItemStack stack) {
         if (tool.isEmpty() || stack.isEmpty()) return -1;
         if (!(stack.getItem() instanceof ToolPartItem incoming)) return -1;
         MaterialId material = incoming.getMaterial(stack);
@@ -114,7 +190,7 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
         return -1;
     }
 
-    private ItemStack swapResult(ItemStack tool, ItemStack stack) {
+    protected ItemStack swapResult(ItemStack tool, ItemStack stack) {
         int index = swapIndexFor(tool, stack);
         if (index < 0) return ItemStack.EMPTY;
 
@@ -140,7 +216,7 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
             if (!swapped.isEmpty()) return swapped;
             if (ToolStack.getCurrentDamage(tool()) <= 0 || !accepts(0, input(0))) return ItemStack.EMPTY;
             ItemStack result = tool().copyWithCount(1);
-            int restored = Math.max(1, (ToolStack.getDurability(result) + REPAIR_DIVISOR - 1) / REPAIR_DIVISOR);
+            int restored = repairPerMaterial(result, user);
             result.setDamageValue(Math.max(0, ToolStack.getCurrentDamage(result) - restored));
             return result;
         }
@@ -157,7 +233,8 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
 
     public boolean canAssemble() { return output().isEmpty() && !preview().isEmpty(); }
 
-    @Override public boolean clickMenuButton(Player player, int id) {
+    @Override
+    public boolean clickMenuButton(Player player, int id) {
         if (player.level().isClientSide || !stillValid(player)) return false;
         if (id >= TAB_BASE && id < TAB_BASE + 3) {
             int nextTab = id - TAB_BASE;
@@ -176,18 +253,18 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
         }
         if (activeTab == 2 && id >= MASTERY_SELECT_BASE && id < MASTERY_SELECT_BASE + 3) {
             ItemStack chosen = tool().copy();
-            if (!com.titammods.hephaestus_tools.table.ToolMastery.choose(chosen,id-MASTERY_SELECT_BASE)) return false;
-            blockEntity.getUpgradeSlot().setStackInSlot(0,chosen);
+            if (!ToolMastery.choose(chosen, id - MASTERY_SELECT_BASE)) return false;
+            blockEntity.getUpgradeSlot().setStackInSlot(0, chosen);
             blockEntity.setChanged();
             broadcastChanges();
             return true;
         }
         if (activeTab == 1 && id >= APPLY_BASE && id < MASTERY_SELECT_BASE) {
-            var upgrades = com.titammods.hephaestus_tools.table.ToolUpgrades.availableFor(tool().getItem());
+            var upgrades = ToolUpgrades.availableFor(tool().getItem());
             int index = id - APPLY_BASE;
             if (index < 0 || index >= upgrades.size() || !ToolStack.isInitialized(tool())) return false;
             ItemStack upgraded = tool().copyWithCount(1);
-            if (!com.titammods.hephaestus_tools.table.ToolUpgrades.apply(player, upgraded, upgrades.get(index))) return false;
+            if (!ToolUpgrades.apply(player, upgraded, upgrades.get(index))) return false;
             blockEntity.getUpgradeSlot().setStackInSlot(0, upgraded);
             blockEntity.setChanged();
             broadcastChanges();
@@ -209,15 +286,25 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
         return false;
     }
 
-    private void returnSlot(Player player, int index) {
+    protected void returnSlot(Player player, int index) {
         Slot slot = slots.get(index);
-        ItemStack old = slot.remove(slot.getItem().getCount());
-        if (!old.isEmpty() && !player.getInventory().add(old)) player.drop(old, false);
+        while (slot.hasItem()) {
+            ItemStack old = slot.remove(slot.getItem().getCount());
+            if (old.isEmpty()) break;
+            if (!player.getInventory().add(old)) player.drop(old, false);
+        }
     }
 
-    @Override public void clicked(int slotId, int button, ClickType type, Player player) {
+    @Override
+    public void clicked(int slotId, int button, ClickType type, Player player) {
         if (!stillValid(player)) return;
         if (slotId >= 0 && slotId < MACHINE_SLOTS && !slots.get(slotId).isActive()) return;
+        if (!beforeClick(slotId, button, type, player)) return;
+        super.clicked(slotId, button, type, player);
+        afterClick(slotId, button, type, player);
+    }
+
+    protected boolean beforeClick(int slotId, int button, ClickType type, Player player) {
         if (slotId == 5 && output().isEmpty()) {
             ItemStack result = preview();
             boolean pickup = type == ClickType.PICKUP && (button == 0 || button == 1)
@@ -235,7 +322,10 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
                 blockEntity.setChanged();
             }
         }
-        super.clicked(slotId, button, type, player);
+        return true;
+    }
+
+    protected void afterClick(int slotId, int button, ClickType type, Player player) {
         if (slotId == 1 && type == ClickType.PICKUP && isRepair()
                 && !attemptPartSwap(player)) attemptRepair();
     }
@@ -267,7 +357,7 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
         ItemStack material = input(0);
         if (current.isEmpty() || material.isEmpty() || ToolStack.getCurrentDamage(current) <= 0 || !accepts(0, material)) return;
         ItemStack repaired = current.copyWithCount(1);
-        int restored = Math.max(1, (ToolStack.getDurability(repaired) + REPAIR_DIVISOR - 1) / REPAIR_DIVISOR);
+        int restored = repairPerMaterial(repaired, user);
         repaired.setDamageValue(Math.max(0, ToolStack.getCurrentDamage(repaired) - restored));
         blockEntity.getOutputSlot().setStackInSlot(0, repaired);
         blockEntity.getInputSlots().extractItem(0, 1, false);
@@ -287,21 +377,31 @@ public class ArsenalTableMenu extends AbstractContainerMenu {
         return false;
     }
 
-    @Override public boolean stillValid(Player player) {
+    @Override
+    public boolean stillValid(Player player) {
         return blockEntity.getLevel() != null
                 && blockEntity.getLevel().getBlockEntity(blockEntity.getBlockPos()) == blockEntity
                 && player.distanceToSqr(blockEntity.getBlockPos().getCenter()) <= 64.0;
     }
 
-    @Override public ItemStack quickMoveStack(Player player, int index) {
+    @Override
+    public ItemStack quickMoveStack(Player player, int index) {
         if (index < 0 || index >= slots.size()) return ItemStack.EMPTY;
         Slot slot = slots.get(index);
         if (!slot.isActive() || !slot.hasItem() || !slot.mayPickup(player)) return ItemStack.EMPTY;
         ItemStack stack = slot.getItem(), original = stack.copy();
+        if (index < MACHINE_SLOTS && stack.getCount() > stack.getMaxStackSize()) {
+            ItemStack portion = stack.copyWithCount(stack.getMaxStackSize());
+            if (!moveItemStackTo(portion, MACHINE_SLOTS, slots.size(), true)) return ItemStack.EMPTY;
+            int moved = stack.getMaxStackSize() - portion.getCount();
+            if (moved > 0) slot.remove(moved);
+            slot.setChanged();
+            return ItemStack.EMPTY;
+        }
         if (index < MACHINE_SLOTS) {
             if (!moveItemStackTo(stack, MACHINE_SLOTS, slots.size(), true)) return ItemStack.EMPTY;
         } else if (!(activeTab == 0 ? moveItemStackTo(stack, 1, 6, false)
-                : moveItemStackTo(stack, 0, 1, false))) {
+                : moveItemStackTo(stack, 0, quickMoveTabEnd(), false))) {
             int hotbar = MACHINE_SLOTS + 27;
             if (index < hotbar ? !moveItemStackTo(stack, hotbar, slots.size(), false)
                     : !moveItemStackTo(stack, MACHINE_SLOTS, hotbar, false)) return ItemStack.EMPTY;

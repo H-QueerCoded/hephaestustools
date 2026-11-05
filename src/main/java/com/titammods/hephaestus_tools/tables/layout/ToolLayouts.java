@@ -52,6 +52,7 @@ public final class ToolLayouts {
     private static ToolLayout.InputSlotDef in(int x, int y, Item part, ResourceLocation icon) {
         return new ToolLayout.InputSlotDef(x, y, part, icon);
     }
+
     private static ToolLayout.InputSlotDef in(int x, int y, ResourceLocation icon) {
         return new ToolLayout.InputSlotDef(x, y, null, icon);
     }
@@ -96,6 +97,14 @@ public final class ToolLayouts {
                     in(31, 22, ModItems.SMALL_AXE_HEAD.get(), SMALL_AXE_HEAD),
                     in(22, 53, ModItems.TOOL_HANDLE.get(),    TOOL_HANDLE),
                     in(51, 34, ModItems.ADZE_HEAD.get(),      ADZE_HEAD)
+            ));
+
+    public static final ToolLayout PAXEL = make("paxel", ModItems.PAXEL.get(), HIDDEN,
+            List.of(
+                    in(51, 34, ModItems.PICK_HEAD.get(),      PICK_HEAD),
+                    in(22, 53, ModItems.TOOL_HANDLE.get(),    TOOL_HANDLE),
+                    in(41, 14, ModItems.ADZE_HEAD.get(),      ADZE_HEAD),
+                    in(21, 22, ModItems.SMALL_AXE_HEAD.get(), SMALL_AXE_HEAD)
             ));
 
     public static final ToolLayout EXCAVATOR = make("excavator", ModItems.EXCAVATOR.get(), HIDDEN,
@@ -160,9 +169,13 @@ public final class ToolLayouts {
     public static final List<ToolLayout> ALL = List.of(
             REPAIR,
             PICKAXE, SLEDGE_HAMMER, VEIN_HAMMER,
-            MATTOCK, EXCAVATOR,
+            MATTOCK, PAXEL, EXCAVATOR,
             HAND_AXE, BROAD_AXE,
             KAMA, SCYTHE,
             DAGGER, SWORD, CLEAVER
     );
+
+    public static final List<ToolLayout> CRAFTABLE = ALL.stream()
+            .filter(layout -> layout != VEIN_HAMMER)
+            .toList();
 }

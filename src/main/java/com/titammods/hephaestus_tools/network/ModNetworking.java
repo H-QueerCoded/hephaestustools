@@ -8,7 +8,6 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 
 @EventBusSubscriber(modid = HephaestusTools.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public class ModNetworking {
-
     @SubscribeEvent
     public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar reg = event.registrar(HephaestusTools.MOD_ID).versioned("1.0.0");
@@ -17,5 +16,11 @@ public class ModNetworking {
                 SyncMaterialsPayload.STREAM_CODEC,
                 SyncMaterialsPayload::handle
         );
+        reg.playToClient(SyncTraitsPayload.TYPE, SyncTraitsPayload.STREAM_CODEC, SyncTraitsPayload::handle);
+        reg.playToClient(SyncTiersPayload.TYPE, SyncTiersPayload.STREAM_CODEC, SyncTiersPayload::handle);
+        reg.playToClient(SyncToolTraitsPayload.TYPE, SyncToolTraitsPayload.STREAM_CODEC, SyncToolTraitsPayload::handle);
+        reg.playToServer(TableStylePayload.TYPE, TableStylePayload.STREAM_CODEC, TableStylePayload::handle);
+        reg.playToServer(CraftAnimPayload.TYPE, CraftAnimPayload.STREAM_CODEC, CraftAnimPayload::handle);
+        reg.playToClient(RemoteCraftPayload.TYPE, RemoteCraftPayload.STREAM_CODEC, RemoteCraftPayload::handle);
     }
 }

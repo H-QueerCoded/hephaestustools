@@ -1,6 +1,6 @@
 package com.titammods.hephaestus_tools.tools.modifier;
 
-import net.minecraft.world.item.Tiers;
+import com.titammods.hephaestus_tools.tools.stat.HarvestTier;
 
 public final class ModifierStatContext {
 
@@ -9,13 +9,15 @@ public final class ModifierStatContext {
     public float attackDamage;
     public float attackSpeed;
     public int enchantability;
-    public Tiers harvestTier;
+    public HarvestTier harvestTier;
     public int fortune;
     public int looting;
     public boolean indestructible;
+    public final int toolLevel;
 
     public ModifierStatContext(float durability, float miningSpeed, float attackDamage,
-                               float attackSpeed, int enchantability, Tiers harvestTier) {
+                               float attackSpeed, int enchantability, HarvestTier harvestTier, int toolLevel) {
+        this.toolLevel = toolLevel;
         this.durability = durability;
         this.miningSpeed = miningSpeed;
         this.attackDamage = attackDamage;
@@ -51,19 +53,9 @@ public final class ModifierStatContext {
         this.attackDamage *= (1.0f + factor);
     }
 
-    public void setHarvestTier(Tiers tier) {
-        if (miningLevel(tier) > miningLevel(this.harvestTier)) {
+    public void setHarvestTier(HarvestTier tier) {
+        if (tier.miningLevel() > this.harvestTier.miningLevel()) {
             this.harvestTier = tier;
         }
-    }
-
-    public static int miningLevel(Tiers tier) {
-        return switch (tier) {
-            case WOOD, GOLD -> 0;
-            case STONE -> 1;
-            case IRON -> 2;
-            case DIAMOND -> 3;
-            case NETHERITE -> 4;
-        };
     }
 }

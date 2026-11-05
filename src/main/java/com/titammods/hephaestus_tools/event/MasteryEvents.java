@@ -7,8 +7,8 @@ import com.titammods.hephaestus_tools.table.MasteryStreak;
 import com.titammods.hephaestus_tools.table.ToolMastery;
 import com.titammods.hephaestus_tools.tools.aoe.BlockSideHitHandler;
 import com.titammods.hephaestus_tools.tools.aoe.PlayerBlockBreaks;
-import com.titammods.hephaestus_tools.tools.helper.ToolCombat;
 import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
+import com.titammods.hephaestus_tools.tools.helper.ToolCombat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -46,6 +46,7 @@ import java.util.function.Predicate;
 
 @EventBusSubscriber(modid = HephaestusTools.MOD_ID, bus = EventBusSubscriber.Bus.GAME)
 public final class MasteryEvents {
+
     private MasteryEvents() {}
 
     private static final long STREAK_TICKS = 60, COMBAT_TICKS = 100;
@@ -59,6 +60,19 @@ public final class MasteryEvents {
     private static boolean isDeepBlock(BlockState s) {
         return s.is(BlockTags.BASE_STONE_OVERWORLD) || s.is(BlockTags.DEEPSLATE_ORE_REPLACEABLES)
                 || s.is(Tags.Blocks.ORES) || s.is(Blocks.DEEPSLATE) || s.is(BlockTags.STONE_ORE_REPLACEABLES);
+    }
+
+    private static boolean isPathBlock(BlockState s) {
+        return s.is(BlockTags.BASE_STONE_OVERWORLD) || s.is(BlockTags.LOGS) || MasteryAoe.isEarth(s);
+    }
+
+    private static boolean isGathering(BlockState s) {
+        return s.is(BlockTags.MINEABLE_WITH_PICKAXE) || s.is(BlockTags.MINEABLE_WITH_AXE) || s.is(BlockTags.MINEABLE_WITH_SHOVEL);
+    }
+
+    private static void spareWear(ItemStack tool, Player p, float chance) {
+        if (tool.getDamageValue() > 0 && p.getRandom().nextFloat() < chance)
+            tool.setDamageValue(tool.getDamageValue() - 1);
     }
 
     @SubscribeEvent
@@ -83,6 +97,16 @@ public final class MasteryEvents {
                 if (lv >= 10 && p.getY() < 32 && isDeepBlock(event.getState()))
                     mult += (lv >= 30 ? 0.30f : lv >= 20 ? 0.20f : 0.10f);
             }
+            case "pathfinder" -> {
+                if (lv >= 10 && isPathBlock(event.getState()))
+                    mult += lv >= 30 ? 0.30f : lv >= 20 ? 0.20f : 0.10f;
+                if (lv >= 30) mult += Math.min(MasteryStreak.mineCount(p.getUUID(), now), 10) * 0.02f;
+            }
+            case "frontier" -> {
+                if (lv >= 10 && isGathering(event.getState()))
+                    mult += lv >= 30 ? 0.20f : 0.12f;
+                if (lv >= 30) mult += Math.min(MasteryStreak.mineCount(p.getUUID(), now), 10) * 0.03f;
+            }
             case "unstoppable" -> {
                 float hardness = event.getPosition()
                         .map(pos -> event.getState().getDestroySpeed(p.level(), pos)).orElse(0f);
@@ -104,8 +128,9 @@ public final class MasteryEvents {
         String m = mastery(tool);
         if (m.isEmpty()) return;
         int lv = MasteryLevel.of(tool);
-        ServerLevel level = p.serverLevel();
+        Level level = p.level();
         long now = level.getGameTime();
+        boolean srv = p instanceof ServerPlayer && level instanceof ServerLevel;
 
         switch (m) {
             case "momentum" -> MasteryStreak.mine(p.getUUID(), now, STREAK_TICKS);
@@ -140,29 +165,68 @@ public final class MasteryEvents {
                     flood(level, p, pos, s -> s.is(BlockTags.LOGS) && s.getBlock() == state.getBlock(),
                             lv >= 30 ? 32 : lv >= 20 ? 16 : 8, 1);
             }
+            case "pathfinder" -> {
+                if (lv >= 30) MasteryStreak.mine(p.getUUID(), now, STREAK_TICKS);
+                if (lv >= 20 && isPathBlock(state)) spareWear(tool, p, lv >= 30 ? 0.25f : 0.15f);
+            }
+            case "frontier" -> {
+                if (lv >= 30) MasteryStreak.mine(p.getUUID(), now, STREAK_TICKS);
+                if (lv >= 20 && isGathering(state)) {
+                    spareWear(tool, p, 0.15f);
+                    if (srv && state.is(Tags.Blocks.ORES) && !state.hasBlockEntity() && tool.isCorrectToolForDrops(state)
+                            && p.getRandom().nextFloat() < (lv >= 30 ? 0.15f : 0.10f))
+                        Block.dropResources(state, level, pos, null, p, tool);
+                }
+            }
+            case "trailblazer" -> {
+                if (!srv || lv < 10 || !MasteryAoe.isGroundwork(state)) return;
+                Direction side = BlockSideHitHandler.getSideHit(p);
+                List<BlockPos> area;
+                if (lv >= 30 && p.isShiftKeyDown()) {
+                    area = new ArrayList<>();
+                    Direction forward = side.getOpposite();
+                    for (int i = 1; i <= 4; i++) {
+                        BlockPos np = pos.relative(forward, i);
+                        if (MasteryAoe.isGroundwork(level.getBlockState(np))) area.add(np);
+                    }
+                } else {
+                    area = MasteryAoe.square(level, pos, side, lv >= 30 ? 2 : 1, MasteryAoe::isGroundwork);
+                    if (lv >= 20) {
+                        BlockPos back = pos.relative(side.getOpposite());
+                        if (MasteryAoe.isGroundwork(level.getBlockState(back))) area.add(back);
+                    }
+                }
+                MasteryAoe.breakBlocks(p, tool, area, MasteryAoe::isGroundwork);
+                if (lv >= 20) spareWear(tool, p, 0.25f);
+            }
             case "groundworker" -> {
-                List<BlockPos> area = MasteryAoe.square(level, pos, BlockSideHitHandler.getSideHit(p),
-                        lv >= 30 ? 2 : 1, MasteryAoe::isGroundwork);
+                if (!srv) return;
+                var area = MasteryAoe.square(level, pos, BlockSideHitHandler.getSideHit(p), lv >= 30 ? 2 : 1, MasteryAoe::isGroundwork);
                 MasteryAoe.breakBlocks(p, tool, area, MasteryAoe::isGroundwork);
             }
             case "reaper", "harvest_sweep", "replanter", "green_thumb" -> {
+                if (!srv) return;
                 int r = m.equals("reaper") ? (lv >= 30 ? 4 : lv >= 20 ? 3 : 2) : (lv >= 30 ? 3 : lv >= 20 ? 2 : 1);
-                List<BlockPos> area = MasteryAoe.square(level, pos, Direction.UP, r, MasteryAoe::isMatureCrop);
-                MasteryAoe.harvestCrops(level, p, tool, area, m.equals("replanter"), m.equals("green_thumb"));
+                var area = MasteryAoe.square(level, pos, Direction.UP, r, MasteryAoe::isMatureCrop);
+                MasteryAoe.harvestCrops((ServerLevel) level, (ServerPlayer) p, tool, area,
+                        m.equals("replanter"), m.equals("green_thumb"));
             }
             case "aftershock" -> {
-                if (lv < 10) return;
+                if (!srv || lv < 10) return;
                 BlockPos back = pos.relative(BlockSideHitHandler.getSideHit(p).getOpposite());
-                List<BlockPos> list = new ArrayList<>();
-                list.add(back);
-                if (lv >= 30) { list.add(back.above()); list.add(back.below()); }
-                MasteryAoe.breakBlocks(level, p, tool, list, false);
+                if (back != null) {
+                    var list = new ArrayList<BlockPos>();
+                    list.add(back);
+                    if (lv >= 30) { list.add(back.above()); list.add(back.below()); }
+                    MasteryAoe.breakBlocks((ServerLevel) level, (ServerPlayer) p, tool, list, false);
+                }
             }
         }
     }
 
-    private static int flood(Level level, ServerPlayer player, BlockPos origin,
+    private static int flood(Level level, Player p, BlockPos origin,
                              Predicate<BlockState> match, int limit, int range) {
+        if (!(p instanceof ServerPlayer player)) return 0;
         ItemStack tool = player.getMainHandItem();
         int broken = 0;
         Set<BlockPos> vis = new HashSet<>();
@@ -220,13 +284,18 @@ public final class MasteryEvents {
             }
             case "butcher" -> bonus += Math.min(target.getMaxHealth() / 20f, 1f) * (lv >= 30 ? 0.75f : lv >= 20 ? 0.5f : 0.3f);
             case "crushing_blow" -> {
-                if (p.getAttackStrengthScale(0.5f) > 0.95f) bonus += lv >= 30 ? 0.6f : lv >= 20 ? 0.4f : 0.25f;
+                if (p.getAttackStrengthScale(0.5f) > 0.95f) {
+                    bonus += lv >= 30 ? 0.6f : lv >= 20 ? 0.4f : 0.25f;
+                }
             }
             case "bloodlust" -> bonus += Math.min(MasteryStreak.killCount(p.getUUID(), now), lv >= 30 ? 8 : lv >= 20 ? 5 : 3) * 0.08f;
             case "blade_dance" -> bonus += Math.min(MasteryStreak.killCount(p.getUUID(), now)
                     + MasteryStreak.nextCombatCount(p.getUUID(), target.getId(), now), lv >= 30 ? 10 : 6) * 0.05f;
-            case "war_axe" -> bonus += lv >= 30 ? 0.5f : lv >= 20 ? 0.35f : 0.2f;
+            case "war_axe" -> {
+                bonus += lv >= 30 ? 0.5f : lv >= 20 ? 0.35f : 0.2f;
+            }
             case "hatchet_master" -> bonus += lv >= 30 ? 0.4f : lv >= 20 ? 0.28f : 0.18f;
+
         }
         if (bonus != 1f) event.setAmount(amount * bonus);
     }
@@ -235,11 +304,10 @@ public final class MasteryEvents {
     public static void onDamageResolved(LivingDamageEvent.Post event) {
         if (event.getNewDamage() <= 0 || !(event.getSource().getEntity() instanceof Player p)) return;
         ItemStack tool = ToolCombat.tool(event.getEntity(), event.getSource());
-        String m = mastery(tool);
-        if (m.isEmpty()) return;
+        String mastery = mastery(tool);
         int lv = MasteryLevel.of(tool);
         LivingEntity target = event.getEntity();
-        switch (m) {
+        switch (mastery) {
             case "assassin", "flurry", "duelist", "blade_dance" ->
                     MasteryStreak.combat(p.getUUID(), target.getId(), p.level().getGameTime(), COMBAT_TICKS);
             case "crushing_blow" -> {
@@ -280,8 +348,8 @@ public final class MasteryEvents {
     }
 
     public static void onMeleeKill(ItemStack tool, ServerPlayer player) {
-        String m = mastery(tool);
-        if (m.equals("bloodlust") || m.equals("blade_dance"))
+        String mastery = mastery(tool);
+        if (mastery.equals("bloodlust") || mastery.equals("blade_dance"))
             MasteryStreak.kill(player.getUUID(), player.level().getGameTime(), COMBAT_TICKS);
     }
 }

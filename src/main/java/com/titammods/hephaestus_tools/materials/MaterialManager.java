@@ -4,10 +4,12 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.mojang.serialization.JsonOps;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimpleJsonResourceReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;
+import net.neoforged.neoforge.common.conditions.ICondition;
 import net.neoforged.neoforge.event.AddReloadListenerEvent;
 import net.neoforged.neoforge.event.OnDatapackSyncEvent;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -26,14 +28,18 @@ public class MaterialManager extends SimpleJsonResourceReloadListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(MaterialManager.class);
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
     private static final String FOLDER = "hephaestus_tools/materials";
+    private static final String CONDITIONS_KEY = "neoforge:conditions";
 
-    private static MaterialManager INSTANCE = new MaterialManager();
+    private static MaterialManager INSTANCE = new MaterialManager(ICondition.IContext.EMPTY);
+
+    private final ICondition.IContext context;
 
     private volatile Map<MaterialId, Material> materials = new LinkedHashMap<>();
     private volatile Map<MaterialId, Integer> fingerprints = Map.of();
 
-    private MaterialManager() {
+    private MaterialManager(ICondition.IContext context) {
         super(GSON, FOLDER);
+        this.context = context;
     }
 
     public static MaterialManager getInstance() {
@@ -45,10 +51,15 @@ public class MaterialManager extends SimpleJsonResourceReloadListener {
         Map<MaterialId, Material> parsed = new LinkedHashMap<>();
         int loaded = 0;
         int failed = 0;
+        int skipped = 0;
 
         for (Map.Entry<ResourceLocation, JsonElement> entry : resources.entrySet()) {
             ResourceLocation loc = entry.getKey();
             try {
+                if (!conditionsMet(entry.getValue())) {
+                    skipped++;
+                    continue;
+                }
                 Material material = Material.CODEC.parse(JsonOps.INSTANCE, entry.getValue())
                         .getOrThrow(msg -> new IllegalStateException("Falha ao parsear material " + loc + ": " + msg));
                 parsed.put(material.id(), material);
@@ -60,16 +71,25 @@ public class MaterialManager extends SimpleJsonResourceReloadListener {
         }
 
         replaceAll(parsed);
-        LOGGER.info("[HephaestusTools] Materiais carregados: {} OK, {} falhas", loaded, failed);
+        LOGGER.info("[HephaestusTools] Materiais carregados: {} OK, {} falhas, {} ignorados por condicao", loaded, failed, skipped);
+    }
+
+    private boolean conditionsMet(JsonElement json) {
+        if (!json.isJsonObject() || !json.getAsJsonObject().has(CONDITIONS_KEY)) return true;
+        List<ICondition> conditions = ICondition.LIST_CODEC.parse(JsonOps.INSTANCE, json.getAsJsonObject().get(CONDITIONS_KEY))
+                .getOrThrow(msg -> new IllegalStateException(msg));
+        for (ICondition condition : conditions) {
+            if (!condition.test(context)) return false;
+        }
+        return true;
     }
 
     private void replaceAll(Map<MaterialId, Material> source) {
         Map<MaterialId, Integer> next = new HashMap<>();
-        source.forEach((id, material) -> next.put(id, Objects.hash(
-                material.id(), material.color(),
-                material.headStats(), material.handleStats(), material.bindingStats())));
+        source.forEach((id, material) -> next.put(id, material.toString().hashCode()));
         materials = source;
         fingerprints = Map.copyOf(next);
+        ToolTraits.invalidate();
     }
 
     public OptionalInt fingerprint(List<MaterialId> ids) {
@@ -90,7 +110,7 @@ public class MaterialManager extends SimpleJsonResourceReloadListener {
 
     public MaterialStats getStatsForSlot(MaterialId id, int slot) {
         Material mat = materials.get(id);
-        return mat != null ? mat.getStatsForSlot(slot) : MaterialStats.EMPTY;
+        return mat != null ? mat.getStatsForSlot(slot) : MaterialStats.emptyFor(slot);
     }
 
     @javax.annotation.Nullable
@@ -108,7 +128,7 @@ public class MaterialManager extends SimpleJsonResourceReloadListener {
 
     @SubscribeEvent
     public static void onAddReloadListeners(AddReloadListenerEvent event) {
-        INSTANCE = new MaterialManager();
+        INSTANCE = new MaterialManager(event.getConditionContext());
         event.addListener(INSTANCE);
     }
 

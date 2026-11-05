@@ -1,10 +1,11 @@
 package com.titammods.hephaestus_tools.registry;
 
 import com.titammods.hephaestus_tools.HephaestusTools;
+import com.titammods.hephaestus_tools.recipe.ModifierRecipe;
 import com.titammods.hephaestus_tools.recipe.PartRecipe;
 import com.titammods.hephaestus_tools.recipe.ToolBuildingRecipe;
-import com.titammods.hephaestus_tools.recipe.ModifierRecipe;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -21,21 +22,15 @@ public class ModRecipes {
 
     public static final Supplier<RecipeType<PartRecipe>> PART_BUILDER =
             RECIPE_TYPES.register("part_builder",
-                    () -> RecipeType.simple(
-                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
-                                    HephaestusTools.MOD_ID, "part_builder")));
+                    () -> RecipeType.simple(ResourceLocation.fromNamespaceAndPath(HephaestusTools.MOD_ID, "part_builder")));
 
     public static final Supplier<RecipeType<ToolBuildingRecipe>> TOOL_BUILDING =
             RECIPE_TYPES.register("tool_building",
-                    () -> RecipeType.simple(
-                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
-                                    HephaestusTools.MOD_ID, "tool_building")));
+                    () -> RecipeType.simple(ResourceLocation.fromNamespaceAndPath(HephaestusTools.MOD_ID, "tool_building")));
 
     public static final Supplier<RecipeType<ModifierRecipe>> MODIFIER =
             RECIPE_TYPES.register("modifier",
-                    () -> RecipeType.simple(
-                            net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
-                                    HephaestusTools.MOD_ID, "modifier")));
+                    () -> RecipeType.simple(ResourceLocation.fromNamespaceAndPath(HephaestusTools.MOD_ID, "modifier")));
 
     public static final Supplier<RecipeSerializer<PartRecipe>> PART_BUILDER_SERIALIZER =
             RECIPE_SERIALIZERS.register("part_builder", PartRecipe.Serializer::new);

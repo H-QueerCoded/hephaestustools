@@ -6,14 +6,25 @@ import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 public final class ToolCombat {
+    private record Swing(Player player, Entity target, boolean critical) {}
     private static final ThreadLocal<Boolean> SECONDARY = ThreadLocal.withInitial(() -> false);
+    private static final ThreadLocal<Swing> SWING = new ThreadLocal<>();
 
     private ToolCombat() {}
+
+    public static void startAttack() {
+        SWING.remove();
+    }
+
+    public static void critical(Player player, Entity target, boolean critical) {
+        SWING.set(new Swing(player, target, critical));
+    }
 
     public static ItemStack tool(LivingEntity target, DamageSource source) {
         if (SECONDARY.get() || !source.is(DamageTypes.PLAYER_ATTACK)
@@ -22,6 +33,12 @@ public final class ToolCombat {
         }
         ItemStack tool = player.getMainHandItem();
         return ToolStack.isUsable(tool) ? tool : ItemStack.EMPTY;
+    }
+
+    public static boolean isCritical(LivingEntity target, DamageSource source) {
+        if (tool(target, source).isEmpty()) return false;
+        Swing swing = SWING.get();
+        return swing != null && swing.player() == source.getEntity() && swing.target() == target && swing.critical();
     }
 
     public static void killed(LivingEntity target, DamageSource source) {

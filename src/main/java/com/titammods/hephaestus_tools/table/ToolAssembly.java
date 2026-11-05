@@ -17,7 +17,7 @@ public record ToolAssembly(Item result, List<Item> parts) {
 
     public static void init() {
         if (!REGISTRY.isEmpty()) return;
-        for (var layout : com.titammods.hephaestus_tools.tables.layout.ToolLayouts.ALL) {
+        for (var layout : com.titammods.hephaestus_tools.tables.layout.ToolLayouts.CRAFTABLE) {
             List<Item> parts = com.titammods.hephaestus_tools.tools.helper.ToolBuildHandler
                     .getToolParts(layout.iconItem());
             if (!parts.isEmpty()) REGISTRY.add(new ToolAssembly(layout.iconItem(), parts));

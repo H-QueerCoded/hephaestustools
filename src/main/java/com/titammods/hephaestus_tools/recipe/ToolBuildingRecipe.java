@@ -7,11 +7,14 @@ import com.titammods.hephaestus_tools.registry.ModRecipes;
 import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
 import com.titammods.hephaestus_tools.tools.part.ToolPartItem;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeInput;
 import net.minecraft.world.item.crafting.RecipeSerializer;
@@ -26,6 +29,20 @@ public record ToolBuildingRecipe(
         List<ResourceLocation> parts
 ) implements Recipe<RecipeInput> {
 
+    public static final MapCodec<ToolBuildingRecipe> CODEC = RecordCodecBuilder.mapCodec(instance ->
+            instance.group(
+                    ResourceLocation.CODEC.fieldOf("result").forGetter(ToolBuildingRecipe::result),
+                    ResourceLocation.CODEC.listOf().fieldOf("parts").forGetter(ToolBuildingRecipe::parts)
+            ).apply(instance, ToolBuildingRecipe::new)
+    );
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, ToolBuildingRecipe> STREAM_CODEC =
+            StreamCodec.composite(
+                    ResourceLocation.STREAM_CODEC, ToolBuildingRecipe::result,
+                    ResourceLocation.STREAM_CODEC.apply(ByteBufCodecs.list()), ToolBuildingRecipe::parts,
+                    ToolBuildingRecipe::new
+            );
+
     @Override
     public boolean matches(RecipeInput input, Level level) {
         return false;
@@ -38,8 +55,12 @@ public record ToolBuildingRecipe(
 
     @Override
     public ItemStack getResultItem(HolderLookup.Provider registries) {
-        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(result);
-        return item != null ? new ItemStack(item) : ItemStack.EMPTY;
+        return getResultItem();
+    }
+
+    public ItemStack getResultItem() {
+        Item item = BuiltInRegistries.ITEM.get(result);
+        return item != null && item != Items.AIR ? new ItemStack(item) : ItemStack.EMPTY;
     }
 
     @Override
@@ -52,6 +73,16 @@ public record ToolBuildingRecipe(
         return true;
     }
 
+    @Override
+    public String getGroup() {
+        return "";
+    }
+
+    @Override
+    public boolean showNotification() {
+        return false;
+    }
+
     public List<MaterialId> extractMaterials(List<ItemStack> inputParts) {
         if (inputParts.size() < parts.size()) return null;
         List<MaterialId> materials = new ArrayList<>();
@@ -60,7 +91,7 @@ public record ToolBuildingRecipe(
             if (stack.isEmpty()) return null;
             if (!(stack.getItem() instanceof ToolPartItem partItem)) return null;
             ResourceLocation expectedPart = parts.get(i);
-            ResourceLocation actualPart = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(partItem);
+            ResourceLocation actualPart = BuiltInRegistries.ITEM.getKey(partItem);
             if (!expectedPart.equals(actualPart)) return null;
             MaterialId mat = partItem.getMaterial(stack);
             if (mat.isEmpty()) return null;
@@ -70,8 +101,8 @@ public record ToolBuildingRecipe(
     }
 
     public ItemStack createResult(List<MaterialId> materials) {
-        net.minecraft.world.item.Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(result);
-        if (item == null || item == net.minecraft.world.item.Items.AIR) return ItemStack.EMPTY;
+        Item item = BuiltInRegistries.ITEM.get(result);
+        if (item == null || item == Items.AIR) return ItemStack.EMPTY;
         return ToolStack.createTool(new ItemStack(item), materials);
     }
 
@@ -87,19 +118,9 @@ public record ToolBuildingRecipe(
 
     public static class Serializer implements RecipeSerializer<ToolBuildingRecipe> {
 
-        public static final MapCodec<ToolBuildingRecipe> CODEC = RecordCodecBuilder.mapCodec(instance ->
-                instance.group(
-                        ResourceLocation.CODEC.fieldOf("result").forGetter(ToolBuildingRecipe::result),
-                        ResourceLocation.CODEC.listOf().fieldOf("parts").forGetter(ToolBuildingRecipe::parts)
-                ).apply(instance, ToolBuildingRecipe::new)
-        );
+        public static final MapCodec<ToolBuildingRecipe> CODEC = ToolBuildingRecipe.CODEC;
 
-        public static final StreamCodec<RegistryFriendlyByteBuf, ToolBuildingRecipe> STREAM_CODEC =
-                StreamCodec.composite(
-                        ResourceLocation.STREAM_CODEC, ToolBuildingRecipe::result,
-                        ResourceLocation.STREAM_CODEC.apply(ByteBufCodecs.list()), ToolBuildingRecipe::parts,
-                        ToolBuildingRecipe::new
-                );
+        public static final StreamCodec<RegistryFriendlyByteBuf, ToolBuildingRecipe> STREAM_CODEC = ToolBuildingRecipe.STREAM_CODEC;
 
         @Override
         public MapCodec<ToolBuildingRecipe> codec() { return CODEC; }

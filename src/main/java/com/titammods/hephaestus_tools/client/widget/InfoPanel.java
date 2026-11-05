@@ -16,9 +16,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 
-
 public class InfoPanel {
-
     private static final ResourceLocation BACKGROUND_IMAGE = ResourceLocation.fromNamespaceAndPath(
             HephaestusTools.MOD_ID, "textures/gui/panel.png");
 

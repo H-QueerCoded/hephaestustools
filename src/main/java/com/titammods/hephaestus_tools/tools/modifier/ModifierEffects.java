@@ -1,9 +1,9 @@
 package com.titammods.hephaestus_tools.tools.modifier;
 
+import com.titammods.hephaestus_tools.materials.tier.BuiltInTiers;
+import com.titammods.hephaestus_tools.tools.stat.HarvestTier;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Tiers;
 
-import javax.annotation.Nullable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -14,11 +14,11 @@ public final class ModifierEffects {
     private static final String NS = "hephaestus_tools";
     private static final Map<ResourceLocation, ModifierEffect> EFFECTS = new LinkedHashMap<>();
 
-    public static final ResourceLocation DIAMOND   = id("diamond");
-    public static final ResourceLocation EMERALD   = id("emerald");
-    public static final ResourceLocation LAPIS     = id("lapis");
-    public static final ResourceLocation NETHERITE = id("netherite");
-    public static final ResourceLocation HASTE     = id("haste");
+    public static final ResourceLocation DIAMOND    = id("diamond");
+    public static final ResourceLocation EMERALD    = id("emerald");
+    public static final ResourceLocation LAPIS      = id("lapis");
+    public static final ResourceLocation NETHERITE  = id("netherite");
+    public static final ResourceLocation HASTE      = id("haste");
     public static final ResourceLocation REINFORCED = id("reinforced");
     public static final ResourceLocation FORTUNE    = id("fortune");
     public static final ResourceLocation SHARPNESS  = id("sharpness");
@@ -32,14 +32,14 @@ public final class ModifierEffects {
             stats.addDurability(500);
             stats.addAttackDamage(0.5f);
             stats.addMiningSpeed(2);
-            stats.setHarvestTier(Tiers.DIAMOND);
+            stats.setHarvestTier(HarvestTier.of(BuiltInTiers.DIAMOND));
         });
 
         register(EMERALD, (stats, level) -> {
             stats.multiplyDurability(0.5f);
             stats.multiplyAttackDamage(0.25f);
             stats.multiplyMiningSpeed(0.25f);
-            stats.setHarvestTier(Tiers.IRON);
+            stats.setHarvestTier(HarvestTier.of(BuiltInTiers.IRON));
         });
 
         register(LAPIS, (stats, level) -> {
@@ -52,7 +52,7 @@ public final class ModifierEffects {
             stats.multiplyDurability(0.2f);
             stats.multiplyAttackDamage(0.2f);
             stats.multiplyMiningSpeed(0.25f);
-            stats.setHarvestTier(Tiers.NETHERITE);
+            stats.setHarvestTier(HarvestTier.of(BuiltInTiers.NETHERITE));
             stats.indestructible = true;
         });
 
@@ -75,7 +75,6 @@ public final class ModifierEffects {
         EFFECTS.put(id, effect);
     }
 
-    @Nullable
     public static ModifierEffect get(ResourceLocation id) {
         return EFFECTS.get(id);
     }

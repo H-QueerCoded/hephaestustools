@@ -11,7 +11,6 @@ import net.minecraft.world.item.enchantment.EnchantmentEffectComponents;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 
 public class ArmorSlot extends Slot {
-
     private static final ResourceLocation[] ARMOR_SLOT_BACKGROUNDS = new ResourceLocation[]{
             InventoryMenu.EMPTY_ARMOR_SLOT_BOOTS,
             InventoryMenu.EMPTY_ARMOR_SLOT_LEGGINGS,

@@ -4,23 +4,29 @@ import com.titammods.hephaestus_tools.materials.Material;
 import com.titammods.hephaestus_tools.materials.MaterialId;
 import com.titammods.hephaestus_tools.materials.MaterialManager;
 import com.titammods.hephaestus_tools.materials.MaterialStats;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits.TraitInstance;
 import com.titammods.hephaestus_tools.tools.item.ModifiableSwordItem;
+import com.titammods.hephaestus_tools.tools.modifier.ModifierEffects;
 import com.titammods.hephaestus_tools.tools.nbt.ToolConstructionData;
 import com.titammods.hephaestus_tools.tools.nbt.ToolPropertiesData;
 import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
 import com.titammods.hephaestus_tools.tools.part.ToolPartItem;
+import com.titammods.hephaestus_tools.tools.stat.HarvestTier;
 import com.titammods.hephaestus_tools.tools.stat.ToolStats;
 import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Tiers;
 
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public final class ToolTooltipBuilder {
 
@@ -43,6 +49,10 @@ public final class ToolTooltipBuilder {
             Component.translatable("key.hephaestus_tools.ctrl").withStyle(ChatFormatting.AQUA, ChatFormatting.ITALIC));
 
     public static List<Component> defaultInfo(ItemStack stack) {
+        return defaultInfo(stack, Map.of());
+    }
+
+    public static List<Component> defaultInfo(ItemStack stack, Map<ResourceLocation, Integer> bonus) {
         List<Component> out = new ArrayList<>();
         if (!ToolStack.isInitialized(stack)) return out;
 
@@ -54,7 +64,7 @@ public final class ToolTooltipBuilder {
             out.add(durabilityLine(stack));
         }
 
-        out.addAll(modifierNames(stack));
+        out.addAll(modifiers(stack, false, bonus));
 
         out.add(Component.empty());
         out.add(HOLD_SHIFT);
@@ -63,6 +73,10 @@ public final class ToolTooltipBuilder {
     }
 
     public static List<Component> stats(ItemStack stack, boolean detailed) {
+        return stats(stack, detailed, Map.of());
+    }
+
+    public static List<Component> stats(ItemStack stack, boolean detailed, Map<ResourceLocation, Integer> bonus) {
         List<Component> out = new ArrayList<>();
         if (!ToolStack.isInitialized(stack)) return out;
 
@@ -82,12 +96,12 @@ public final class ToolTooltipBuilder {
         if (detailed) {
             out.add(statLine("enchantability",
                     Component.literal(Integer.toString(p.getEnchantability())), 0xFFFFFF));
-            if (p.getStat(ToolStats.FORTUNE, 0f) > 0f)
-                out.add(statLine("fortune",
-                        Component.literal("+" + (int) p.getStat(ToolStats.FORTUNE, 0f)), 0xFFFFFF));
-            if (p.getStat(ToolStats.LOOTING, 0f) > 0f)
-                out.add(statLine("looting",
-                        Component.literal("+" + (int) p.getStat(ToolStats.LOOTING, 0f)), 0xFFFFFF));
+            int fortune = (int) p.getStat(ToolStats.FORTUNE, 0f) + bonus.getOrDefault(ModifierEffects.FORTUNE, 0);
+            if (fortune > 0)
+                out.add(statLine("fortune", Component.literal("+" + fortune), 0xFFFFFF));
+            int looting = (int) p.getStat(ToolStats.LOOTING, 0f) + bonus.getOrDefault(ModifierEffects.LOOTING, 0);
+            if (looting > 0)
+                out.add(statLine("looting", Component.literal("+" + looting), 0xFFFFFF));
             if (p.getStat(ToolStats.INDESTRUCTIBLE, 0f) > 0f)
                 out.add(Component.translatable("tooltip.hephaestus_tools.indestructible")
                         .withStyle(ChatFormatting.AQUA));
@@ -114,72 +128,99 @@ public final class ToolTooltipBuilder {
             Material material = mm.getMaterial(matId);
             int color = (material != null) ? (material.color() & 0xFFFFFF) : 0xFFFFFF;
 
-            Component name = part.withMaterial(matId).getHoverName().copy()
+            Component name = new ItemStack(partItem).getHoverName().copy()
+                    .append(" (")
+                    .append(Component.translatable(matId.translationKey()))
+                    .append(")")
                     .withStyle(ChatFormatting.UNDERLINE)
                     .withStyle(s -> s.withColor(color));
             out.add(name);
 
-            MaterialStats st = mm.getStatsForSlot(matId, part.getPartSlot());
-            if (st != null) {
-                switch (part.getPartSlot()) {
-                    case 0 -> {
-                        out.add(statLine("durability", num(st.durability()), C_DURABILITY));
-                        out.add(statLine("attack_damage", num(st.attackDamage()), C_ATTACK_DAMAGE));
-                        out.add(statLine("mining_speed", num(st.miningSpeed()), C_MINING_SPEED));
-                        out.add(prefixLine("harvest_tier", tierName(st.tier())));
-                    }
-                    case 1 -> {
-                        ToolBuildHandler.SupportStats sup = ToolBuildHandler.supportStats(matId, 1);
-                        out.add(statLine("durability",
-                                plus(sup.durability()).append(Component.literal(" "))
-                                        .append(pct(st.durabilityMult())), C_DURABILITY));
-                        out.add(statLine("mining_speed",
-                                plus(sup.miningSpeed()).append(Component.literal(" "))
-                                        .append(pct(st.speedMult())), C_MINING_SPEED));
-                        out.add(statLine("attack_damage",
-                                plus(sup.attackDamage()).append(Component.literal(" "))
-                                        .append(pct(st.damageMult())), C_ATTACK_DAMAGE));
-                        out.add(statLine("attack_speed", pct(st.attackSpeedMult()), C_ATTACK_SPEED));
-                        out.add(statLine("enchantability", plus(sup.enchantability()), 0xFFFFFF));
-                    }
-                    default -> {
-                        ToolBuildHandler.SupportStats sup = ToolBuildHandler.supportStats(matId, 2);
-                        out.add(statLine("durability", plus(sup.durability()), C_DURABILITY));
-                        out.add(statLine("mining_speed", plus(sup.miningSpeed()), C_MINING_SPEED));
-                        out.add(statLine("attack_damage", plus(sup.attackDamage()), C_ATTACK_DAMAGE));
-                        out.add(statLine("enchantability", plus(sup.enchantability()), 0xFFFFFF));
-                    }
-                }
-            }
+            out.addAll(partStats(matId, part.getPartSlot()));
             if (i != count - 1) out.add(Component.empty());
         }
         return out;
     }
 
-    public static List<Component> modifiers(ItemStack stack, boolean detailed) {
+    public static Component holdShift() {
+        return HOLD_SHIFT;
+    }
+
+    public static MutableComponent traitName(TraitInstance trait) {
+        MutableComponent name = Component.translatable(ToolTraits.nameKey(trait.id()));
+        if (trait.level() > 1) {
+            name.append(CommonComponents.SPACE).append(Component.translatableWithFallback(
+                    "enchantment.level." + trait.level(), roman(trait.level()).getString()));
+        }
+        return name;
+    }
+
+    public static List<Component> partStats(MaterialId matId, int slot) {
         List<Component> out = new ArrayList<>();
-        if (!ToolStack.isInitialized(stack)) return out;
-
-        for (ToolConstructionData.ModifierEntry mod : ToolStack.getModifiers(stack)) {
-            ResourceLocation id = mod.id();
-            String base = "modifier." + id.getNamespace() + "." + id.getPath();
-
-            MutableComponent line = Component.translatable(base).withStyle(ChatFormatting.GRAY);
-            if (mod.level() > 1) {
-                line.append(Component.literal(" ")).append(roman(mod.level()));
+        MaterialStats st = MaterialManager.getInstance().getStatsForSlot(matId, slot);
+        if (st == null) return out;
+        switch (slot) {
+            case 0 -> {
+                out.add(statLine("durability", num(st.durability()), C_DURABILITY));
+                out.add(statLine("attack_damage", num(st.attackDamage()), C_ATTACK_DAMAGE));
+                out.add(statLine("mining_speed", num(st.miningSpeed()), C_MINING_SPEED));
+                out.add(prefixLine("harvest_tier", tierName(st.tier())));
             }
-            out.add(line);
-
-            if (detailed) {
-                out.add(Component.literal("  ")
-                        .append(Component.translatable(base + ".desc").withStyle(ChatFormatting.DARK_GRAY)));
+            case 1 -> {
+                ToolBuildHandler.SupportStats sup = ToolBuildHandler.supportStats(matId, 1);
+                out.add(statLine("durability",
+                        plus(sup.durability()).append(Component.literal(" "))
+                                .append(pct(st.durabilityMult())), C_DURABILITY));
+                out.add(statLine("mining_speed",
+                        plus(sup.miningSpeed()).append(Component.literal(" "))
+                                .append(pct(st.speedMult())), C_MINING_SPEED));
+                out.add(statLine("attack_damage",
+                        plus(sup.attackDamage()).append(Component.literal(" "))
+                                .append(pct(st.damageMult())), C_ATTACK_DAMAGE));
+                out.add(statLine("attack_speed", pct(st.attackSpeedMult()), C_ATTACK_SPEED));
+                out.add(statLine("enchantability", plus(sup.enchantability()), 0xFFFFFF));
+            }
+            default -> {
+                ToolBuildHandler.SupportStats sup = ToolBuildHandler.supportStats(matId, 2);
+                out.add(statLine("durability", plus(sup.durability()), C_DURABILITY));
+                out.add(statLine("mining_speed", plus(sup.miningSpeed()), C_MINING_SPEED));
+                out.add(statLine("attack_damage", plus(sup.attackDamage()), C_ATTACK_DAMAGE));
+                out.add(statLine("enchantability", plus(sup.enchantability()), 0xFFFFFF));
             }
         }
         return out;
     }
 
-    private static List<Component> modifierNames(ItemStack stack) {
-        return modifiers(stack, false);
+    public static List<Component> modifiers(ItemStack stack, boolean detailed) {
+        return modifiers(stack, detailed, Map.of());
+    }
+
+    public static List<Component> modifiers(ItemStack stack, boolean detailed, Map<ResourceLocation, Integer> bonus) {
+        List<Component> out = new ArrayList<>();
+        if (!ToolStack.isInitialized(stack)) return out;
+
+        Map<ResourceLocation, Integer> remaining = new LinkedHashMap<>(bonus);
+        for (ToolConstructionData.ModifierEntry mod : ToolStack.getModifiers(stack)) {
+            Integer extra = remaining.remove(mod.id());
+            addModifier(out, mod.id(), mod.level() + (extra == null ? 0 : extra), detailed);
+        }
+        remaining.forEach((id, extra) -> addModifier(out, id, extra, detailed));
+        return out;
+    }
+
+    private static void addModifier(List<Component> out, ResourceLocation id, int level, boolean detailed) {
+        String base = "modifier." + id.getNamespace() + "." + id.getPath();
+
+        MutableComponent line = Component.translatable(base).withStyle(ChatFormatting.GRAY);
+        if (level > 1) {
+            line.append(Component.literal(" ")).append(roman(level));
+        }
+        out.add(line);
+
+        if (detailed) {
+            out.add(Component.literal("  ")
+                    .append(Component.translatable(base + ".desc").withStyle(ChatFormatting.DARK_GRAY)));
+        }
     }
 
     private static MutableComponent prefix(String statKey) {
@@ -218,16 +259,8 @@ public final class ToolTooltipBuilder {
         return Component.literal((v >= 0 ? "+" : "") + v + "%");
     }
 
-    private static Component tierName(Tiers tier) {
-        String name = switch (tier) {
-            case WOOD -> "wood";
-            case STONE -> "stone";
-            case IRON -> "iron";
-            case GOLD -> "gold";
-            case DIAMOND -> "diamond";
-            case NETHERITE -> "netherite";
-        };
-        return Component.translatable("tooltip.hephaestus_tools.tier." + name).withStyle(ChatFormatting.WHITE);
+    private static Component tierName(HarvestTier tier) {
+        return Component.translatable(tier.nameKey()).withStyle(ChatFormatting.WHITE);
     }
 
     private static int valueToColor(float value, float max) {
@@ -236,8 +269,19 @@ public final class ToolTooltipBuilder {
         return java.awt.Color.HSBtoRGB(hue, 0.65f, 0.8f) & 0xFFFFFF;
     }
 
+    private static final int[] ROMAN_VALUES = {1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1};
+    private static final String[] ROMAN_SYMBOLS = {"M", "CM", "D", "CD", "C", "XC", "L", "XL", "X", "IX", "V", "IV", "I"};
+
     private static Component roman(int n) {
-        String[] r = {"", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"};
-        return Component.literal(n >= 0 && n < r.length ? r[n] : Integer.toString(n));
+        if (n <= 0 || n >= 4000) return Component.literal(Integer.toString(n));
+        StringBuilder numeral = new StringBuilder();
+        int rest = n;
+        for (int i = 0; i < ROMAN_VALUES.length; i++) {
+            while (rest >= ROMAN_VALUES[i]) {
+                numeral.append(ROMAN_SYMBOLS[i]);
+                rest -= ROMAN_VALUES[i];
+            }
+        }
+        return Component.literal(numeral.toString());
     }
 }

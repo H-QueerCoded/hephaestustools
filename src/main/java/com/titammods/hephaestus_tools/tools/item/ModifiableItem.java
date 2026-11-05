@@ -1,13 +1,32 @@
 package com.titammods.hephaestus_tools.tools.item;
 
+import com.titammods.hephaestus_tools.api.event.ToolTraitTooltipEvent;
+import com.titammods.hephaestus_tools.effect.ItemUse;
+import com.titammods.hephaestus_tools.effect.ToolEffects;
+import com.titammods.hephaestus_tools.effect.WearCause;
 import com.titammods.hephaestus_tools.event.MasteryEvents;
 import com.titammods.hephaestus_tools.event.MasteryInteract;
-import com.titammods.hephaestus_tools.materials.trait.MaterialTrait;
+import com.titammods.hephaestus_tools.materials.MaterialId;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits.TraitInstance;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits;
+import com.titammods.hephaestus_tools.registry.ModComponents;
+import com.titammods.hephaestus_tools.table.ToolXp;
+import com.titammods.hephaestus_tools.tools.aoe.PlayerBlockBreaks;
 import com.titammods.hephaestus_tools.tools.helper.ToolDurability;
-import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
+import com.titammods.hephaestus_tools.tools.helper.ToolEnchantments;
+import com.titammods.hephaestus_tools.tools.helper.ToolTooltipBuilder;
+import com.titammods.hephaestus_tools.tools.nbt.ToolConstructionData;
 import com.titammods.hephaestus_tools.tools.nbt.ToolPropertiesData;
+import com.titammods.hephaestus_tools.tools.nbt.ToolStack;
+import com.titammods.hephaestus_tools.tools.stat.ToolStats;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -18,7 +37,10 @@ import net.neoforged.neoforge.common.ItemAbility;
 import net.minecraft.network.chat.Component;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlotGroup;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -26,25 +48,31 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Tiers;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.UseAnim;
+import net.neoforged.neoforge.common.NeoForge;
 
+import javax.annotation.Nullable;
+import java.util.function.Consumer;
+
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public abstract class ModifiableItem extends Item {
 
     private static final ResourceLocation ATTACK_DAMAGE_ID = Item.BASE_ATTACK_DAMAGE_ID;
     private static final ResourceLocation ATTACK_SPEED_ID = Item.BASE_ATTACK_SPEED_ID;
-
-    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
-    private static volatile long lastMineLog = 0L;
 
     public ModifiableItem(Properties properties) {
         super(properties);
@@ -61,8 +89,9 @@ public abstract class ModifiableItem extends Item {
 
     @Override
     public boolean canPerformAction(ItemStack stack, ItemAbility ability) {
-        if (!ToolStack.isInitialized(stack) || ToolStack.isBroken(stack)) return false;
+        if (!ToolStack.isUsable(stack)) return false;
         if (ability == ItemAbilities.HOE_TILL && MasteryInteract.isCultivator(stack)) return true;
+        if (ability == ItemAbilities.SWORD_DIG && categories().contains(ToolCategory.SWORD)) return true;
         for (ToolCategory c : categories()) {
             if (c.ability != null && c.ability == ability) return true;
         }
@@ -74,6 +103,16 @@ public abstract class ModifiableItem extends Item {
                 && (state.is(Blocks.COBWEB) || state.is(BlockTags.SWORD_EFFICIENT))) return true;
         for (ToolCategory c : categories()) if (state.is(c.tag)) return true;
         return false;
+    }
+
+    @Override
+    public boolean supportsEnchantment(ItemStack stack, Holder<Enchantment> enchantment) {
+        return !ToolEnchantments.isBanned(enchantment) && super.supportsEnchantment(stack, enchantment);
+    }
+
+    @Override
+    public boolean isPrimaryItemFor(ItemStack stack, Holder<Enchantment> enchantment) {
+        return !ToolEnchantments.isBanned(enchantment) && super.isPrimaryItemFor(stack, enchantment);
     }
 
     @Override
@@ -101,6 +140,29 @@ public abstract class ModifiableItem extends Item {
     }
 
     @Override
+    public boolean shouldCauseBlockBreakReset(ItemStack oldStack, ItemStack newStack) {
+        return !newStack.is(oldStack.getItem()) || !sameIgnoringWear(oldStack, newStack);
+    }
+
+    @Override
+    public boolean shouldCauseReequipAnimation(ItemStack oldStack, ItemStack newStack, boolean slotChanged) {
+        if (slotChanged || !newStack.is(oldStack.getItem())) return oldStack != newStack;
+        return !sameIgnoringWear(oldStack, newStack);
+    }
+
+    private static boolean sameIgnoringWear(ItemStack a, ItemStack b) {
+        DataComponentMap ca = a.getComponents(), cb = b.getComponents();
+        Set<DataComponentType<?>> keys = new HashSet<>(ca.keySet());
+        keys.addAll(cb.keySet());
+        keys.remove(DataComponents.DAMAGE);
+        keys.remove(ModComponents.TOOL_CONSTRUCTION.get());
+        for (DataComponentType<?> key : keys) if (!Objects.equals(ca.get(key), cb.get(key))) return false;
+        ToolConstructionData da = a.get(ModComponents.TOOL_CONSTRUCTION.get()), db = b.get(ModComponents.TOOL_CONSTRUCTION.get());
+        if (da == null || db == null) return da == db;
+        return da.broken() == db.broken() && da.withDamage(0).equals(db.withDamage(0));
+    }
+
+    @Override
     public void setDamage(ItemStack stack, int damage) {
         ToolStack.setDamage(stack, damage);
     }
@@ -108,6 +170,16 @@ public abstract class ModifiableItem extends Item {
     @Override
     public boolean isDamageable(ItemStack stack) {
         return ToolStack.isInitialized(stack);
+    }
+
+    @Override
+    public <T extends LivingEntity> int damageItem(ItemStack stack, int amount, @Nullable T entity, Consumer<Item> onBroken) {
+        WearCause cause = ToolDurability.takeCause();
+        if (ToolStack.isInitialized(stack) && ToolStack.getProperties(stack).getStat(ToolStats.INDESTRUCTIBLE, 0f) > 0f) return 0;
+        if (ToolStack.isBroken(stack) && ToolStack.isUsable(stack)) return 0;
+        int wear = super.damageItem(stack, amount, entity, onBroken);
+        if (entity == null || entity.hasInfiniteMaterials() || !stack.isDamageableItem()) return wear;
+        return ToolEffects.modifyWear(entity, stack, wear, cause);
     }
 
     public float getAttackDamageBonus() { return 0f; }
@@ -123,7 +195,7 @@ public abstract class ModifiableItem extends Item {
         }
 
         ToolPropertiesData props = ToolStack.getProperties(stack);
-        float attackDamage = ToolStack.isBroken(stack) ? 0f : Math.max(0f, props.getAttackDamage());
+        float attackDamage = Math.max(0f, props.getAttackDamage()) * ToolStack.efficiency(stack);
         float attackSpeed  = props.getAttackSpeed();
 
         return ItemAttributeModifiers.builder()
@@ -141,21 +213,19 @@ public abstract class ModifiableItem extends Item {
     @Override
     public float getDestroySpeed(ItemStack stack, BlockState state) {
         if (!ToolStack.isInitialized(stack)) return 1.0f;
-        if (ToolStack.isBroken(stack)) return 0.0f;
+        float efficiency = ToolStack.efficiency(stack);
+        if (efficiency <= 0f) return 0.0f;
+        float speed = ToolStack.getMiningSpeed(stack) * efficiency;
         if (categories().contains(ToolCategory.SWORD) && state.is(Blocks.COBWEB))
-            return Math.max(15.0f, ToolStack.getMiningSpeed(stack));
-        return effectiveOn(state) ? ToolStack.getMiningSpeed(stack) : 1.0f;
+            return Math.max(15.0f, speed);
+        return effectiveOn(state) ? speed : 1.0f;
     }
 
     @Override
     public boolean isCorrectToolForDrops(ItemStack stack, BlockState state) {
-        if (!ToolStack.isInitialized(stack) || ToolStack.isBroken(stack)) return false;
+        if (!ToolStack.isUsable(stack)) return false;
         if (!effectiveOn(state)) return false;
-        return hasCorrectTier(state, ToolStack.getProperties(stack).getHarvestTier());
-    }
-
-    private static boolean hasCorrectTier(BlockState state, Tiers tier) {
-        return !state.is(tier.getIncorrectBlocksForDrops());
+        return ToolStack.getProperties(stack).getHarvestTier().canHarvest(state);
     }
 
     @Override
@@ -163,7 +233,8 @@ public abstract class ModifiableItem extends Item {
                              BlockPos pos, LivingEntity entity) {
         if (level instanceof ServerLevel serverLevel && state.getDestroySpeed(level, pos) > 0
                 && !MasteryEvents.sparesAoeWear(stack, entity)) {
-            ToolDurability.hurt(stack, 1, serverLevel, entity);
+            ToolDurability.hurt(stack, 1, serverLevel, entity,
+                    PlayerBlockBreaks.isBreaking() ? WearCause.AREA_BLOCK : WearCause.BLOCK);
         }
         return true;
     }
@@ -171,7 +242,7 @@ public abstract class ModifiableItem extends Item {
     @Override
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
         if (attacker.level() instanceof ServerLevel serverLevel) {
-            ToolDurability.hurt(stack, 1, serverLevel, attacker);
+            ToolDurability.hurt(stack, 1, serverLevel, attacker, WearCause.ATTACK);
         }
         return true;
     }
@@ -189,7 +260,7 @@ public abstract class ModifiableItem extends Item {
     @Override
     public InteractionResult useOn(UseOnContext ctx) {
         ItemStack stack = ctx.getItemInHand();
-        if (!ToolStack.isInitialized(stack) || ToolStack.isBroken(stack)) return InteractionResult.PASS;
+        if (!ToolStack.isUsable(stack)) return InteractionResult.PASS;
 
         Level level = ctx.getLevel();
         BlockPos pos = ctx.getClickedPos();
@@ -220,67 +291,99 @@ public abstract class ModifiableItem extends Item {
         if (!level.isClientSide) {
             level.setBlock(pos, modified, 11);
             if (player != null && !MasteryInteract.isTilling() && level instanceof ServerLevel serverLevel) {
-                ToolDurability.hurt(stack, 1, serverLevel, player);
+                ToolDurability.hurt(stack, 1, serverLevel, player, WearCause.USE);
             }
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
     }
 
     @Override
+    public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
+        ItemStack held = player.getItemInHand(hand);
+        if (ToolEffects.canStartUse(player, held, hand)) {
+            player.startUsingItem(hand);
+            return InteractionResultHolder.consume(held);
+        }
+        return super.use(level, player, hand);
+    }
+
+    @Override
+    public UseAnim getUseAnimation(ItemStack stack) {
+        return ToolEffects.itemUse(stack).map(ItemUse::animation).orElseGet(() -> super.getUseAnimation(stack));
+    }
+
+    @Override
+    public int getUseDuration(ItemStack stack, LivingEntity user) {
+        return ToolEffects.itemUse(stack).map(ItemUse::duration).orElseGet(() -> super.getUseDuration(stack, user));
+    }
+
+    @Override
+    public void onUseTick(Level level, LivingEntity entity, ItemStack stack, int ticksRemaining) {
+        ToolEffects.useTick(entity, stack, ticksRemaining);
+        super.onUseTick(level, entity, stack, ticksRemaining);
+    }
+
+    @Override
+    public ItemStack finishUsingItem(ItemStack stack, Level level, LivingEntity entity) {
+        if (ToolEffects.finishUse(entity, stack)) return stack;
+        return super.finishUsingItem(stack, level, entity);
+    }
+
+    @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         if (!ToolStack.isInitialized(stack)) {
             tooltip.add(Component.translatable("tooltip.hephaestus_tools.no_material")
-                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+                    .withStyle(ChatFormatting.GRAY));
             return;
         }
 
         appendTrait(stack, tooltip);
 
+        NeoForge.EVENT_BUS.post(new ToolTraitTooltipEvent(stack, tooltip::add));
 
-        int lvl = com.titammods.hephaestus_tools.table.ToolXp.getLevel(stack);
-        net.minecraft.network.chat.Component rank =
-                net.minecraft.network.chat.Component.translatable(com.titammods.hephaestus_tools.table.ToolXp.rankKey(lvl));
-        if (lvl >= com.titammods.hephaestus_tools.table.ToolXp.MAX_LEVEL) {
-            tooltip.add(net.minecraft.network.chat.Component.empty().append(rank)
-                    .append(net.minecraft.network.chat.Component.literal(" (Lv." + lvl + ") - MAX"))
-                    .withStyle(net.minecraft.ChatFormatting.AQUA));
+        int lvl = ToolXp.getLevel(stack);
+        Component rank = Component.translatable(ToolXp.rankKey(lvl));
+        if (lvl >= ToolXp.MAX_LEVEL) {
+            tooltip.add(Component.empty().append(rank)
+                    .append(Component.literal(" (Lv." + lvl + ") - MAX"))
+                    .withStyle(ChatFormatting.AQUA));
         } else {
-            int into = com.titammods.hephaestus_tools.table.ToolXp.xpIntoLevel(stack);
-            int need = com.titammods.hephaestus_tools.table.ToolXp.xpForLevel(stack);
-            tooltip.add(net.minecraft.network.chat.Component.empty().append(rank)
-                    .append(net.minecraft.network.chat.Component.literal(" (Lv." + lvl + ")"))
-                    .withStyle(net.minecraft.ChatFormatting.AQUA));
-            tooltip.add(net.minecraft.network.chat.Component.literal("XP: " + into + " / " + need)
-                    .withStyle(net.minecraft.ChatFormatting.DARK_AQUA));
+            int into = ToolXp.xpIntoLevel(stack);
+            int need = ToolXp.xpForLevel(stack);
+            tooltip.add(Component.empty().append(rank)
+                    .append(Component.literal(" (Lv." + lvl + ")"))
+                    .withStyle(ChatFormatting.AQUA));
+            tooltip.add(Component.literal("XP: " + into + " / " + need)
+                    .withStyle(ChatFormatting.DARK_AQUA));
         }
 
-        if (net.minecraft.client.gui.screens.Screen.hasShiftDown()) {
-            tooltip.addAll(com.titammods.hephaestus_tools.tools.helper.ToolTooltipBuilder.stats(stack, true));
-            List<Component> mods =
-                    com.titammods.hephaestus_tools.tools.helper.ToolTooltipBuilder.modifiers(stack, true);
+        Map<ResourceLocation, Integer> bonus = ToolEnchantments.bonusLevels(stack, context.registries());
+        List<Component> lines = new ArrayList<>();
+        if (Screen.hasShiftDown()) {
+            lines.addAll(ToolTooltipBuilder.stats(stack, true, bonus));
+            List<Component> mods = ToolTooltipBuilder.modifiers(stack, true, bonus);
             if (!mods.isEmpty()) {
-                tooltip.add(Component.empty());
-                tooltip.addAll(mods);
+                lines.add(Component.empty());
+                lines.addAll(mods);
             }
-        } else if (net.minecraft.client.gui.screens.Screen.hasControlDown()) {
-            tooltip.addAll(com.titammods.hephaestus_tools.tools.helper.ToolTooltipBuilder.components(stack, this));
+        } else if (Screen.hasControlDown()) {
+            lines.addAll(ToolTooltipBuilder.components(stack, this));
         } else {
-            tooltip.addAll(com.titammods.hephaestus_tools.tools.helper.ToolTooltipBuilder.defaultInfo(stack));
+            lines.addAll(ToolTooltipBuilder.defaultInfo(stack, bonus));
         }
+        tooltip.addAll(lines);
     }
 
     @Override
-    public void inventoryTick(ItemStack stack, Level level,
-                              net.minecraft.world.entity.Entity entity, int slotId, boolean isSelected) {
+    public void inventoryTick(ItemStack stack, Level level, Entity entity, int slotId, boolean isSelected) {
         super.inventoryTick(stack, level, entity, slotId, isSelected);
         if (level.isClientSide) return;
+        ToolEnchantments.stripBanned(stack);
         ToolStack.refreshIfStale(stack);
         if (!(entity instanceof Player player) || !ToolStack.isInitialized(stack)) return;
-        for (MaterialTrait t : MaterialTrait.collect(ToolStack.getMaterials(stack))) {
-            if (ToolStack.isUsable(stack) || t == MaterialTrait.CULTIVATED) {
-                t.onInventoryTick(stack, level, player);
-            }
-        }
+        EquipmentSlot slot = isSelected ? EquipmentSlot.MAINHAND
+                : player.getOffhandItem() == stack ? EquipmentSlot.OFFHAND : null;
+        ToolEffects.inventoryTick(stack, (ServerLevel) level, player, slot);
     }
 
     @Override
@@ -288,24 +391,20 @@ public abstract class ModifiableItem extends Item {
         return super.getName(stack);
     }
 
-    private static Component materialName(com.titammods.hephaestus_tools.materials.MaterialId id) {
-        ResourceLocation rl = id.id();
-        String key = "material." + rl.getNamespace() + "." + rl.getPath();
-        return Component.translatable(key);
+    private static Component materialName(MaterialId id) {
+        return Component.translatable(id.translationKey());
     }
 
     private static void appendTrait(ItemStack stack, List<Component> tooltip) {
-        for (var t : com.titammods.hephaestus_tools.materials.trait.MaterialTrait.collect(ToolStack.getMaterials(stack))) {
-            tooltip.add(Component.translatable("trait.hephaestus_tools." + t.id())
-                    .withStyle(net.minecraft.ChatFormatting.DARK_AQUA));
+        for (TraitInstance trait : ToolTraits.collect(stack)) {
+            tooltip.add(ToolTooltipBuilder.traitName(trait)
+                    .withStyle(ChatFormatting.DARK_AQUA));
         }
     }
 
-
     @Override
     public void onCraftedBy(ItemStack stack, Level level, Player player) {
-        if (ToolStack.isInitialized(stack) && stack.get(
-                com.titammods.hephaestus_tools.registry.ModComponents.TOOL_PROPERTIES.get()) == null) {
+        if (ToolStack.isInitialized(stack) && stack.get(ModComponents.TOOL_PROPERTIES.get()) == null) {
             ToolStack.recalculate(stack);
         }
     }

@@ -7,6 +7,7 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.ExtraCodecs;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -28,6 +29,53 @@ public record ModifierRecipe(
         Optional<Ingredient> toolRequirement
 ) implements Recipe<RecipeInput> {
 
+    public static final MapCodec<ModifierRecipe> CODEC = RecordCodecBuilder.mapCodec(instance ->
+            instance.group(
+                    ResourceLocation.CODEC.fieldOf("modifier").forGetter(ModifierRecipe::modifierId),
+                    Ingredient.CODEC.listOf().fieldOf("inputs").forGetter(ModifierRecipe::inputs),
+                    ExtraCodecs.POSITIVE_INT
+                            .optionalFieldOf("max_level", 1).forGetter(ModifierRecipe::maxLevel),
+                    ExtraCodecs.POSITIVE_INT
+                            .optionalFieldOf("slots_required", 1).forGetter(ModifierRecipe::slotsRequired),
+                    ExtraCodecs.NON_EMPTY_STRING
+                            .optionalFieldOf("slot_type", "upgrade").forGetter(ModifierRecipe::slotType),
+                    Ingredient.CODEC.optionalFieldOf("tool_requirement")
+                            .forGetter(ModifierRecipe::toolRequirement)
+            ).apply(instance, ModifierRecipe::new)
+    );
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, ModifierRecipe> STREAM_CODEC =
+            StreamCodec.of(
+                    (buf, r) -> {
+                        buf.writeResourceLocation(r.modifierId());
+                        buf.writeVarInt(r.inputs().size());
+                        for (Ingredient ing : r.inputs()) {
+                            Ingredient.CONTENTS_STREAM_CODEC.encode(buf, ing);
+                        }
+                        buf.writeVarInt(r.maxLevel());
+                        buf.writeVarInt(r.slotsRequired());
+                        buf.writeUtf(r.slotType());
+                        buf.writeBoolean(r.toolRequirement().isPresent());
+                        r.toolRequirement().ifPresent(ing ->
+                                Ingredient.CONTENTS_STREAM_CODEC.encode(buf, ing));
+                    },
+                    buf -> {
+                        ResourceLocation id = buf.readResourceLocation();
+                        int count = buf.readVarInt();
+                        List<Ingredient> inputs = new ArrayList<>(count);
+                        for (int i = 0; i < count; i++) {
+                            inputs.add(Ingredient.CONTENTS_STREAM_CODEC.decode(buf));
+                        }
+                        int maxLevel = buf.readVarInt();
+                        int slots = buf.readVarInt();
+                        String slotType = buf.readUtf();
+                        Optional<Ingredient> req = buf.readBoolean()
+                                ? Optional.of(Ingredient.CONTENTS_STREAM_CODEC.decode(buf))
+                                : Optional.empty();
+                        return new ModifierRecipe(id, inputs, maxLevel, slots, slotType, req);
+                    }
+            );
+
     @Override
     public boolean matches(RecipeInput input, Level level) {
         return false;
@@ -40,6 +88,10 @@ public record ModifierRecipe(
 
     @Override
     public ItemStack getResultItem(HolderLookup.Provider registries) {
+        return getResultItem();
+    }
+
+    public ItemStack getResultItem() {
         return ItemStack.EMPTY;
     }
 
@@ -54,6 +106,16 @@ public record ModifierRecipe(
     }
 
     @Override
+    public String getGroup() {
+        return "";
+    }
+
+    @Override
+    public boolean showNotification() {
+        return false;
+    }
+
+    @Override
     public RecipeSerializer<ModifierRecipe> getSerializer() {
         return ModRecipes.MODIFIER_SERIALIZER.get();
     }
@@ -65,52 +127,9 @@ public record ModifierRecipe(
 
     public static class Serializer implements RecipeSerializer<ModifierRecipe> {
 
-        public static final MapCodec<ModifierRecipe> CODEC = RecordCodecBuilder.mapCodec(instance ->
-                instance.group(
-                        ResourceLocation.CODEC.fieldOf("modifier").forGetter(ModifierRecipe::modifierId),
-                        Ingredient.CODEC.listOf().fieldOf("inputs").forGetter(ModifierRecipe::inputs),
-                        net.minecraft.util.ExtraCodecs.POSITIVE_INT
-                                .optionalFieldOf("max_level", 1).forGetter(ModifierRecipe::maxLevel),
-                        net.minecraft.util.ExtraCodecs.POSITIVE_INT
-                                .optionalFieldOf("slots_required", 1).forGetter(ModifierRecipe::slotsRequired),
-                        net.minecraft.util.ExtraCodecs.NON_EMPTY_STRING
-                                .optionalFieldOf("slot_type", "upgrade").forGetter(ModifierRecipe::slotType),
-                        Ingredient.CODEC.optionalFieldOf("tool_requirement")
-                                .forGetter(ModifierRecipe::toolRequirement)
-                ).apply(instance, ModifierRecipe::new)
-        );
+        public static final MapCodec<ModifierRecipe> CODEC = ModifierRecipe.CODEC;
 
-        public static final StreamCodec<RegistryFriendlyByteBuf, ModifierRecipe> STREAM_CODEC =
-                StreamCodec.of(
-                        (buf, r) -> {
-                            buf.writeResourceLocation(r.modifierId());
-                            buf.writeVarInt(r.inputs().size());
-                            for (Ingredient ing : r.inputs()) {
-                                Ingredient.CONTENTS_STREAM_CODEC.encode(buf, ing);
-                            }
-                            buf.writeVarInt(r.maxLevel());
-                            buf.writeVarInt(r.slotsRequired());
-                            buf.writeUtf(r.slotType());
-                            buf.writeBoolean(r.toolRequirement().isPresent());
-                            r.toolRequirement().ifPresent(ing ->
-                                    Ingredient.CONTENTS_STREAM_CODEC.encode(buf, ing));
-                        },
-                        buf -> {
-                            ResourceLocation id = buf.readResourceLocation();
-                            int count = buf.readVarInt();
-                            List<Ingredient> inputs = new ArrayList<>(count);
-                            for (int i = 0; i < count; i++) {
-                                inputs.add(Ingredient.CONTENTS_STREAM_CODEC.decode(buf));
-                            }
-                            int maxLevel = buf.readVarInt();
-                            int slots = buf.readVarInt();
-                            String slotType = buf.readUtf();
-                            Optional<Ingredient> req = buf.readBoolean()
-                                    ? Optional.of(Ingredient.CONTENTS_STREAM_CODEC.decode(buf))
-                                    : Optional.empty();
-                            return new ModifierRecipe(id, inputs, maxLevel, slots, slotType, req);
-                        }
-                );
+        public static final StreamCodec<RegistryFriendlyByteBuf, ModifierRecipe> STREAM_CODEC = ModifierRecipe.STREAM_CODEC;
 
         @Override
         public MapCodec<ModifierRecipe> codec() { return CODEC; }

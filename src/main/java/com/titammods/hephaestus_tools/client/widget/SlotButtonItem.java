@@ -9,7 +9,6 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
 public class SlotButtonItem extends Button {
-
     public static final int WIDTH  = 18;
     public static final int HEIGHT = 18;
 

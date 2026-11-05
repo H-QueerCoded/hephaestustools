@@ -1,18 +1,25 @@
 package com.titammods.hephaestus_tools.datagen;
 
-import com.titammods.hephaestus_tools.HephaestusTools;
 import net.minecraft.data.DataGenerator;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
+import net.minecraft.data.PackOutput;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
 
-@EventBusSubscriber(modid = HephaestusTools.MOD_ID, bus = EventBusSubscriber.Bus.MOD)
 public class ModDataGenerators {
 
-    @SubscribeEvent
-    public static void onGatherData(GatherDataEvent event) {
+    private ModDataGenerators() {}
+
+    public static void register(IEventBus modEventBus) {
+        modEventBus.addListener(ModDataGenerators::onGatherData);
+    }
+
+    private static void onGatherData(GatherDataEvent event) {
         DataGenerator gen = event.getGenerator();
-        gen.addProvider(event.includeServer(),
-                new PartCastingMeltingProvider(gen.getPackOutput()));
+        PackOutput output = gen.getPackOutput();
+        gen.addProvider(event.includeServer(), new ModBlockDataProvider(output));
+        gen.addProvider(event.includeServer(), new ModRecipeProvider(output, event.getLookupProvider()));
+        gen.addProvider(event.includeServer(), new PartCastingMeltingProvider(output));
+        gen.addProvider(event.includeServer(), new TraitProvider(output));
+        gen.addProvider(event.includeServer(), new TierProvider(output));
     }
 }

@@ -24,6 +24,7 @@ public final class ToolLayerMap {
             put(ModItems.SLEDGE_HAMMER.get(), 1, 0, 3, 2);
             put(ModItems.VEIN_HAMMER.get(),   1, 0, 3, 2);
             put(ModItems.MATTOCK.get(),       0, 1, 2);
+            put(ModItems.PAXEL.get(),         1, 3, 0, 2);
             put(ModItems.EXCAVATOR.get(),     0, 3, 1, 2);
             put(ModItems.HAND_AXE.get(),      0, 1, 2);
             put(ModItems.BROAD_AXE.get(),     1, 0, 2, 3);
@@ -44,7 +45,7 @@ public final class ToolLayerMap {
         ensureInit();
         int[] map = LAYER_TO_MATERIAL.getOrDefault(item, IDENTITY);
         if (tintIndex < 0 || tintIndex >= map.length) {
-            return -1; 
+            return -1;
         }
         return map[tintIndex];
     }

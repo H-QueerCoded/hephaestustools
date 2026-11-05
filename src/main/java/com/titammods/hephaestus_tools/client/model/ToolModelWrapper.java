@@ -21,7 +21,7 @@ public final class ToolModelWrapper {
 
     private static final List<DeferredItem<?>> TOOLS = List.of(
             ModItems.PICKAXE, ModItems.SLEDGE_HAMMER, ModItems.VEIN_HAMMER,
-            ModItems.MATTOCK, ModItems.EXCAVATOR, ModItems.HAND_AXE,
+            ModItems.MATTOCK, ModItems.PAXEL, ModItems.EXCAVATOR, ModItems.HAND_AXE,
             ModItems.BROAD_AXE, ModItems.KAMA, ModItems.SCYTHE,
             ModItems.DAGGER, ModItems.SWORD, ModItems.CLEAVER
     );

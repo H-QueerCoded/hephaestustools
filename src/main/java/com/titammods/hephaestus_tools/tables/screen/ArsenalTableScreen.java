@@ -1,8 +1,9 @@
 package com.titammods.hephaestus_tools.tables.screen;
 
 import com.titammods.hephaestus_tools.HephaestusTools;
-import com.titammods.hephaestus_tools.materials.MaterialManager;
-import com.titammods.hephaestus_tools.materials.trait.MaterialTrait;
+import com.titammods.hephaestus_tools.materials.trait.ToolTraits;
+import com.titammods.hephaestus_tools.tools.helper.ToolBuildHandler;
+import com.titammods.hephaestus_tools.tools.helper.ToolTooltipBuilder;
 import com.titammods.hephaestus_tools.table.ArsenalTableLayout;
 import com.titammods.hephaestus_tools.table.ToolAssembly;
 import com.titammods.hephaestus_tools.tables.menu.ArsenalTableMenu;
@@ -34,6 +35,7 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
     private static final int SELECT_X=305, SELECT_Y=124, SELECT_W=63, SELECT_H=14;
     private double scrollGrab;
     private static final ResourceLocation MODIFY = rl("modify_screen.png"), MASTERY = rl("mastery_patch_screen.png");
+    private static final ResourceLocation LOCK_SPRITE = ResourceLocation.fromNamespaceAndPath(HephaestusTools.MOD_ID, "workbench/icon_lock");
     private int selectedEntry = 0, listOffset = 0, lastTab = -1;
     private net.minecraft.world.item.Item lastTool;
     private boolean expandedLeftStats = false;
@@ -55,6 +57,7 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
         return ResourceLocation.fromNamespaceAndPath(HephaestusTools.MOD_ID, "textures/gui/forge_table/" + name);
     }
     private static Component tr(String key) { return Component.translatable("gui.hephaestus_tools.build." + key); }
+    private static Component tr(String key, Object... args) { return Component.translatable("gui.hephaestus_tools.build." + key, args); }
     public ArsenalTableScreen(ArsenalTableMenu menu, Inventory inv, Component title) {
         super(menu, inv, title);
         imageWidth = 384; imageHeight = 256;
@@ -199,7 +202,7 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
         }
         String[] names={"durability","mining_speed","harvest","attack_damage","attack_speed"};
         String[] values={String.valueOf(ToolStack.getDurability(details)),fmt(ToolStack.getMiningSpeed(details)),
-                Component.translatable("tooltip.hephaestus_tools.tier."+ToolStack.getHarvestTier(details).name().toLowerCase(Locale.ROOT)).getString(),
+                Component.translatable(ToolStack.getHarvestTier(details).nameKey()).getString(),
                 fmt(ToolStack.getAttackDamage(details)),fmt(ToolStack.getAttackSpeed(details))};
         for(int i=0;i<5;i++) {
             int rowY = 64 + i * (menu.getActiveTab()==0?11:10);
@@ -212,20 +215,28 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
         }
         text(g,tr("traits"),300,menu.getActiveTab()==0?122:116,74,.75f,0xEEE6DB);
         var materials=ToolStack.getMaterials(details);
-        var parts=com.titammods.hephaestus_tools.tools.helper.ToolBuildHandler.getToolParts(details.getItem());
+        var parts=ToolBuildHandler.getToolParts(details.getItem());
         for(int i=0;i<materials.size();i++) {
             var mat=materials.get(i);
-            var stats=MaterialManager.getInstance().getStatsForSlot(mat,0);
-            var trait=MaterialTrait.byId(stats.traitId());
-            if(trait.isEmpty()) continue;
-            Component traitName=Component.translatable("trait.hephaestus_tools."+trait.get().id());
-            Component materialName=Component.translatable("material.hephaestus_tools."+mat.id().getPath());
-            Component partName=i<parts.size()?new ItemStack(parts.get(i)).getHoverName():Component.literal("");
-            traitDetails.add(traitName.copy().append(" - ").append(materialName).append(" (").append(partName).append(")"));
+            for(var trait:ToolTraits.ofPart(mat,ToolBuildHandler.partRole(parts,i))) {
+                Component traitName=ToolTooltipBuilder.traitName(trait);
+                Component materialName=Component.translatable(mat.translationKey());
+                Component partName=i<parts.size()?new ItemStack(parts.get(i)).getHoverName():Component.literal("");
+                traitDetails.add(traitName.copy().append(" - ").append(materialName).append(" (").append(partName).append(")"));
+                int traitY=(menu.getActiveTab()==0?133:127)+(traitDetails.size()-1)*7;
+                int bottom=LATERAL_Y+(menu.getActiveTab()==0?statsHeight():(expandedLeftStats?128:107))-15;
+                if(traitDetails.size()<=4 && traitY+Math.ceil(font.lineHeight*.52f)<=bottom)
+                    text(g,traitName.copy().append(" - ").append(materialName),300,traitY,74,.52f,0xB1A79B);
+            }
+        }
+        Component toolName=new ItemStack(details.getItem()).getHoverName();
+        for(var trait:ToolTraits.ofTool(details.getItem())) {
+            Component traitName=ToolTooltipBuilder.traitName(trait);
+            traitDetails.add(traitName.copy().append(" - ").append(toolName));
             int traitY=(menu.getActiveTab()==0?133:127)+(traitDetails.size()-1)*7;
             int bottom=LATERAL_Y+(menu.getActiveTab()==0?statsHeight():(expandedLeftStats?128:107))-15;
             if(traitDetails.size()<=4 && traitY+Math.ceil(font.lineHeight*.52f)<=bottom)
-                text(g,traitName.copy().append(" - ").append(materialName),300,traitY,74,.52f,0xB1A79B);
+                text(g,traitName.copy().append(" - ").append(toolName),300,traitY,74,.52f,0xB1A79B);
         }
         if(traitDetails.isEmpty()) text(g,tr("no_traits"),300,menu.getActiveTab()==0?133:127,74,.6f,0xA2978B);
     }
@@ -241,7 +252,7 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
         if(in(mx,my,collapseX(),collapseY(),16,8)) tooltip=tr(expandedStats?"collapse":"expand");
         int[][] pos=ArsenalTableLayout.hexSlotPositions();
         for(int i=0;i<4;i++) if(menu.slots.get(i+1).isActive()&&menu.input(i).isEmpty()&&in(mx,my,pos[i][0],pos[i][1],ArsenalTableLayout.SLOT_W,ArsenalTableLayout.SLOT_H))
-            tooltip=menu.isRepair()?tr("repair_hint"):new ItemStack(menu.parts().get(i)).getHoverName();
+            tooltip=menu.isRepair()?tr("repair_hint",menu.repairPercent()+"%"):new ItemStack(menu.parts().get(i)).getHoverName();
         if(in(mx,my,300,120,64,50)&&!traitDetails.isEmpty())
             g.renderComponentTooltip(font,traitDetails,mx,my);
         else if(tooltip!=null) g.renderTooltip(font,tooltip,mx,my);
@@ -430,14 +441,23 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
         if(name.equals("looting")) name="fortune";
         return List.of("reinforced","haste","fortune","sharpness","silk_touch","flame","sweeping","looting").contains(name)?rl("modifier_icon/modifier_"+(name.equals("silk_touch")?"silky":name.equals("looting")?"fortune":name)+".png"):null;
     }
+    private boolean slotLocked(int i) {
+        return i>=installedModifiers().size() && i>=com.titammods.hephaestus_tools.table.ToolUpgrades.unlockedSlots(menu.tool());
+    }
     private void drawModifierSlots(GuiGraphics g) {
         var installed=installedModifiers();
         int max=com.titammods.hephaestus_tools.table.ToolUpgrades.MAX_MODIFIER_SLOTS;
-        text(g,tr("slots_used").copy().append(" "+installed.size()+" / "+max),300,67,74,.65f,0xDED1BE);
+        int unlocked=com.titammods.hephaestus_tools.table.ToolUpgrades.unlockedSlots(menu.tool());
+        text(g,tr("slots_used").copy().append(" "+installed.size()+" / "+unlocked),300,67,74,.65f,0xDED1BE);
         for(int i=0;i<Math.max(max,installed.size());i++) {
             int x=300+(i%5)*15,y=82+(i/5)*17;
             if(y+13>LATERAL_Y+statsHeight()-16) break;
             atlas(g,new int[]{114,97,12,12},x,y,13,13);
+            if(slotLocked(i)) {
+                g.fill(leftPos+x+1,topPos+y+1,leftPos+x+12,topPos+y+12,0x90000000);
+                g.blitSprite(LOCK_SPRITE,leftPos+x+2,topPos+y+2,9,9);
+                continue;
+            }
             if(i<installed.size()) {
                 var texture=installedIcon(installed.get(i).id());
                 if(texture!=null) g.blit(texture,leftPos+x+1,topPos+y+1,11,11,0,0,16,16,16,16);
@@ -460,6 +480,11 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
                 Component cost=tr("materials_required").copy().append(": "+up.costFor(level+1)+" x ")
                         .append(new ItemStack(up.costItem()).getHoverName());
                 lines.addAll(font.split(cost,180));
+                for(ItemStack extra:up.extraCosts(level+1)) {
+                    int have=com.titammods.hephaestus_tools.table.ToolUpgrades.extraCount(minecraft.player,extra.getItem());
+                    lines.addAll(font.split(Component.literal(extra.getCount()+" x ").append(extra.getHoverName()).append("  ("+have+")")
+                            .withStyle(have>=extra.getCount()?net.minecraft.ChatFormatting.GREEN:net.minecraft.ChatFormatting.RED),180));
+                }
                 lines.addAll(font.split(tr("materials_owned").copy().append(": "+owned)
                         .withStyle(owned>=up.costFor(level+1)?net.minecraft.ChatFormatting.GREEN:net.minecraft.ChatFormatting.RED),180));
                 boolean creative=minecraft.player!=null && minecraft.player.getAbilities().instabuild;
@@ -467,8 +492,11 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
                 else if(owned<up.costFor(level+1)) lines.addAll(font.split(
                         Component.translatable("gui.hephaestus_tools.build.materials_missing",up.costFor(level+1)-owned)
                                 .withStyle(net.minecraft.ChatFormatting.RED),180));
-                if(level==0 && com.titammods.hephaestus_tools.table.ToolUpgrades.usedSlots(menu.tool())>=com.titammods.hephaestus_tools.table.ToolUpgrades.MAX_MODIFIER_SLOTS)
+                if(level==0 && com.titammods.hephaestus_tools.table.ToolUpgrades.usedSlots(menu.tool())>=com.titammods.hephaestus_tools.table.ToolUpgrades.unlockedSlots(menu.tool())) {
                     lines.addAll(font.split(tr("no_modifier_slots").copy().withStyle(net.minecraft.ChatFormatting.RED),180));
+                    if(com.titammods.hephaestus_tools.table.ToolUpgrades.unlockedSlots(menu.tool())<com.titammods.hephaestus_tools.table.ToolUpgrades.MAX_MODIFIER_SLOTS)
+                        lines.addAll(font.split(tr("no_free_slot").copy().withStyle(net.minecraft.ChatFormatting.RED),180));
+                }
                 if(com.titammods.hephaestus_tools.table.ToolUpgrades.canApply(minecraft.player,menu.tool(),up))
                     lines.addAll(font.split(tr("ready_to_apply").copy().withStyle(net.minecraft.ChatFormatting.GREEN),180));
             } else lines.add(tr("max_level").getVisualOrderText());
@@ -540,6 +568,16 @@ public class ArsenalTableScreen extends AbstractContainerScreen<ArsenalTableMenu
         }
         if(menu.getActiveTab()==1) {
             var installed=installedModifiers();
+            for(int i=installed.size();i<com.titammods.hephaestus_tools.table.ToolUpgrades.MAX_MODIFIER_SLOTS;i++) {
+                int y=82+(i/5)*17;
+                if(y+13>LATERAL_Y+statsHeight()-16) break;
+                if(slotLocked(i) && in(mx,my,300+(i%5)*15,y,13,13)) {
+                    g.renderComponentTooltip(font,List.of(tr("locked_title").copy().withStyle(net.minecraft.ChatFormatting.GOLD),
+                            Component.translatable("gui.hephaestus_tools.build.slot_locked",com.titammods.hephaestus_tools.table.ToolUpgrades.unlockLevel(i)),
+                            tr("slots_unlock").copy().withStyle(net.minecraft.ChatFormatting.GRAY)),mx,my);
+                    return;
+                }
+            }
             for(int i=0;i<installed.size();i++) {
                 int y=82+(i/5)*17;
                 if(y+13>LATERAL_Y+statsHeight()-16) break;
