@@ -165,7 +165,6 @@ public class WorkbenchScreen extends AbstractContainerScreen<WorkbenchMenu> {
     }
 
     private static final int FILL_LINK = 0xFFFFD23F, FILL_HOVER = 0xFFFFF29A;
-    private static final int TABLE_GUI_SCALE = 3;
     private int savedGuiScale = -1;
 
     @Override public void added() {
@@ -183,7 +182,15 @@ public class WorkbenchScreen extends AbstractContainerScreen<WorkbenchMenu> {
     private void applyTableGuiScale() {
         var option = minecraft.options.guiScale();
         if (savedGuiScale < 0) savedGuiScale = option.get();
-        if (option.get() != TABLE_GUI_SCALE) option.set(TABLE_GUI_SCALE);
+        int target = tableGuiScale();
+        if (option.get() != target) option.set(target);
+    }
+
+    private int tableGuiScale() {
+        var window = minecraft.getWindow();
+        int max = 1;
+        while (window.getWidth() / (max + 1) >= 320 && window.getHeight() / (max + 1) >= 240) max++;
+        return Math.max(1, max - 1);
     }
 
     private void restoreGuiScale() {
